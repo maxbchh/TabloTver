@@ -1,0 +1,2975 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>АВТОВОКЗАЛ · матричное табло и командная строка</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Russo+One&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════════════════════════════
+   АВТОВОКЗАЛ · только табло и командная строка
+   Палитра взята из самого предмета: янтарь светодиодной матрицы,
+   бирюза автовокзального указателя, красный городских маршрутов,
+   синий пригородных, зелёный междугородных, жёлтый международных,
+   оранжевый служебных, голубой заказных.
+   ═══════════════════════════════════════════════════════════════════════ */
+:root{
+  --bg0:#04080a;
+  --bg1:#071114;
+  --panel:#0b171b;
+  --panel2:#102227;
+  --panel3:#163036;
+  --line:#1e383e;
+  --line2:#2b5158;
+  --ink:#e8f4f4;
+  --mut:#8fabb0;
+  --mut2:#5d7c82;
+  --hub:#0fb5a5;
+  --hub2:#22d3c5;
+  --am:#ffb63d;
+  --am2:#ff9f1c;
+  --gr:#35e08c;
+  --emerald:#00c46a;
+  --rd:#ff3b30;
+  --rd2:#e0342f;
+  --crimson:#ff4d5e;
+  --sky:#7fd4ff;
+  --blue:#2f7dff;
+  --orange:#ff8a3d;
+  --yellow:#ffd23f;
+  --disp:'Russo One','Arial Black',sans-serif;
+  --ui:'Manrope',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,'Cascadia Mono',Consolas,monospace;
+  --r:12px;
+  --rs:8px;
+  --shadow:0 18px 48px rgba(0,0,0,.6);
+}
+*{
+  box-sizing:border-box;
+  margin:0;
+  padding:0;
+}
+html{
+  color-scheme:dark;
+}
+html,body{
+  height:100%;
+}
+body{
+  font-family:var(--ui);
+  font-size:14px;
+  line-height:1.45;
+  color:var(--ink);
+  background:var(--bg0);
+  overflow-x:hidden;
+  background-image:
+    radial-gradient(1100px 560px at 8% -12%, rgba(15,181,165,.14), transparent 62%),
+    radial-gradient(920px 620px at 106% 4%, rgba(255,159,28,.10), transparent 60%),
+    radial-gradient(820px 700px at 46% 122%, rgba(47,125,255,.08), transparent 62%),
+    linear-gradient(180deg,#061316 0%,#04080a 100%);
+  background-attachment:fixed;
+}
+::selection{
+  background:rgba(255,182,61,.32);
+}
+:focus-visible{
+  outline:2px solid var(--am);
+  outline-offset:2px;
+  border-radius:4px;
+}
+button{
+  font-family:inherit;
+  color:inherit;
+  cursor:pointer;
+}
+input,select,textarea{
+  font-family:inherit;
+  color:var(--ink);
+}
+svg.ic{
+  width:17px;
+  height:17px;
+  flex:none;
+  display:block;
+}
+
+/* ── полосы прокрутки в языке пульта ──────────────────────────── */
+*{
+  scrollbar-width:thin;
+  scrollbar-color:#3f3216 #0a0806;
+}
+::-webkit-scrollbar{
+  width:11px;
+  height:11px;
+}
+::-webkit-scrollbar-track{
+  background:#0a0806;
+  border-radius:8px;
+}
+::-webkit-scrollbar-thumb{
+  background:linear-gradient(180deg,#4a3a17,#2a2110);
+  border-radius:8px;
+  border:2px solid #0a0806;
+}
+::-webkit-scrollbar-thumb:hover{
+  background:linear-gradient(180deg,var(--am),#b97f1e);
+}
+::-webkit-scrollbar-corner{
+  background:#0a0806;
+}
+
+/* ── атмосфера ────────────────────────────────────────────────── */
+.grain{
+  position:fixed;
+  inset:0;
+  z-index:1;
+  pointer-events:none;
+  opacity:.055;
+  mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='150' height='150' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.drift{
+  position:fixed;
+  width:66vw;
+  height:66vw;
+  left:-20vw;
+  top:-30vw;
+  z-index:0;
+  pointer-events:none;
+  background:radial-gradient(circle,rgba(15,181,165,.09),transparent 66%);
+  animation:drift 82s ease-in-out infinite alternate;
+}
+@keyframes drift{
+  from{transform:translate(0,0)}
+  to{transform:translate(60vw,34vh)}
+}
+.ornament{
+  height:11px;
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='30' height='11'%3E%3Cpath d='M15 1 20.5 5.5 15 10 9.5 5.5Z M15 3.2 17.6 5.5 15 7.8 12.4 5.5Z' fill='none' stroke='%23e0342f' stroke-opacity='.7'/%3E%3Cpath d='M0 5.5h8M22 5.5h8' stroke='%230fb5a5' stroke-opacity='.6'/%3E%3C/svg%3E") repeat-x center;
+}
+
+/* ── верхняя панель ───────────────────────────────────────────── */
+#top{
+  position:fixed;
+  top:0;
+  left:0;
+  right:0;
+  z-index:60;
+  background:rgba(5,12,14,.93);
+  backdrop-filter:blur(14px);
+  -webkit-backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--line);
+}
+.topline{
+  min-height:66px;
+  display:flex;
+  align-items:center;
+  gap:12px;
+  padding:9px 16px;
+  flex-wrap:wrap;
+}
+.brand{
+  display:flex;
+  align-items:center;
+  gap:11px;
+  min-width:0;
+}
+.brand .mark{
+  width:42px;
+  height:42px;
+  flex:none;
+  border-radius:11px;
+  display:grid;
+  place-items:center;
+  color:#eafffb;
+  background:linear-gradient(150deg,#22d3c5,#0b8d81 60%,#065f57);
+  border:1px solid #12a294;
+  box-shadow:0 0 22px rgba(15,181,165,.35),inset 0 1px 0 rgba(255,255,255,.25);
+}
+.brand .mark svg{
+  width:25px;
+  height:25px;
+}
+.brand .tt{
+  min-width:0;
+}
+.brand h1{
+  font-family:var(--disp);
+  font-size:13px;
+  letter-spacing:.14em;
+  color:var(--hub2);
+  white-space:nowrap;
+  text-shadow:0 0 18px rgba(15,181,165,.4);
+}
+.nameinp{
+  display:block;
+  width:230px;
+  max-width:44vw;
+  background:#071316;
+  border:1px solid var(--line);
+  border-radius:8px;
+  padding:5px 9px;
+  font-family:var(--disp);
+  font-size:14px;
+  letter-spacing:.04em;
+  color:#eafffb;
+  margin-top:3px;
+  transition:all .16s;
+}
+.nameinp:hover{
+  border-color:var(--line2);
+}
+.nameinp:focus{
+  outline:none;
+  border-color:var(--hub2);
+  box-shadow:0 0 0 3px rgba(15,181,165,.16);
+}
+.clock{
+  display:flex;
+  align-items:center;
+  gap:9px;
+  font-family:var(--mono);
+  font-weight:700;
+  font-size:21px;
+  color:var(--am);
+  background:#0b1006;
+  border:1px solid #3f3216;
+  padding:6px 14px;
+  border-radius:10px;
+  text-shadow:0 0 15px rgba(255,182,61,.5);
+}
+.clock i{
+  width:7px;
+  height:7px;
+  border-radius:50%;
+  background:var(--gr);
+  box-shadow:0 0 9px var(--gr);
+  animation:blip 2s infinite;
+}
+.clock.paused i{
+  background:var(--am);
+  box-shadow:0 0 9px var(--am);
+  animation:none;
+}
+.clock small{
+  font-family:var(--ui);
+  font-size:9.5px;
+  color:var(--mut2);
+  font-weight:800;
+  letter-spacing:.06em;
+  text-shadow:none;
+}
+@keyframes blip{
+  0%,100%{opacity:1}
+  50%{opacity:.32}
+}
+.transport{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  flex-wrap:wrap;
+}
+.tbtn{
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  border:1px solid var(--line);
+  background:#0a1518;
+  color:var(--mut);
+  border-radius:8px;
+  padding:8px 10px;
+  font-family:var(--mono);
+  font-size:12px;
+  font-weight:700;
+  transition:all .14s;
+}
+.tbtn:hover{
+  color:var(--am);
+  border-color:#3f3216;
+}
+.tbtn:active{
+  transform:scale(.93);
+}
+.tbtn.on{
+  color:#1a1206;
+  background:linear-gradient(180deg,#ffcf6e,var(--am2));
+  border-color:#6b5218;
+  box-shadow:0 0 16px rgba(255,159,28,.3);
+}
+.speeds{
+  display:flex;
+  border:1px solid var(--line);
+  border-radius:8px;
+  overflow:hidden;
+}
+.speeds button{
+  border:0;
+  background:#0a1518;
+  color:var(--mut2);
+  font-family:var(--mono);
+  font-size:11px;
+  font-weight:700;
+  padding:8px 9px;
+  transition:all .14s;
+}
+.speeds button+button{
+  border-left:1px solid var(--line);
+}
+.speeds button.on{
+  background:#3a2d12;
+  color:var(--am);
+}
+.scrub{
+  display:flex;
+  align-items:center;
+  gap:9px;
+  background:#0b1006;
+  border:1px solid #3f3216;
+  border-radius:9px;
+  padding:6px 12px;
+}
+.scrub .lbl{
+  color:#a97f2c;
+}
+.scrub output{
+  font-family:var(--mono);
+  font-size:11.5px;
+  font-weight:700;
+  color:var(--am);
+  min-width:42px;
+  text-align:right;
+}
+.timeset{
+  display:flex;
+  align-items:center;
+  gap:5px;
+}
+.timeset input{
+  background:#071316;
+  border:1px solid var(--line);
+  border-radius:8px;
+  padding:7px 9px;
+  font-family:var(--mono);
+  font-size:12.5px;
+  width:104px;
+}
+.timeset input:focus{
+  outline:none;
+  border-color:var(--am);
+  box-shadow:0 0 0 3px rgba(255,182,61,.14);
+}
+#top .spacer{
+  flex:1;
+}
+.ib{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:7px;
+  width:38px;
+  height:38px;
+  border-radius:10px;
+  border:1px solid var(--line);
+  background:#0b171b;
+  color:var(--mut);
+  transition:all .16s;
+}
+.ib:hover{
+  color:var(--am);
+  border-color:#3f3216;
+  box-shadow:0 0 14px rgba(255,182,61,.16);
+}
+.ib.on{
+  color:var(--gr);
+  border-color:#1c6b43;
+  background:#0a1a15;
+}
+.ib:active{
+  transform:scale(.94);
+}
+.ib.sm{
+  width:29px;
+  height:29px;
+  border-radius:7px;
+}
+.ib.sm svg.ic{
+  width:14px;
+  height:14px;
+}
+
+/* ── каркас ───────────────────────────────────────────────────── */
+main{
+  position:relative;
+  z-index:2;
+  max-width:1420px;
+  margin:0 auto;
+  padding:154px 16px 30px;
+  display:flex;
+  flex-direction:column;
+  gap:16px;
+}
+.wires{
+  position:absolute;
+  top:100px;
+  left:0;
+  width:100%;
+  height:200px;
+  opacity:.45;
+  pointer-events:none;
+  z-index:0;
+}
+.stage{
+  position:relative;
+  z-index:1;
+}
+
+/* ── рейка управления табло ───────────────────────────────────── */
+.rail{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:9px 12px;
+  margin-bottom:11px;
+}
+.grp{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.lbl{
+  font-size:10px;
+  font-weight:800;
+  letter-spacing:.1em;
+  text-transform:uppercase;
+  color:var(--mut2);
+}
+.seg{
+  display:inline-flex;
+  background:#0a1518;
+  border:1px solid var(--line);
+  border-radius:10px;
+  padding:3px;
+  gap:3px;
+}
+.seg button{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  border:0;
+  background:transparent;
+  color:var(--mut);
+  font-weight:700;
+  font-size:12px;
+  padding:6px 11px;
+  border-radius:7px;
+  transition:all .16s;
+}
+.seg button:hover{
+  color:var(--ink);
+}
+.seg button.on{
+  background:linear-gradient(180deg,#3a2d12,#241b0a);
+  color:var(--am);
+  box-shadow:inset 0 0 0 1px #6b5218,0 0 14px rgba(255,182,61,.16);
+}
+.shape{
+  display:inline-block;
+  border:1.5px solid currentColor;
+  border-radius:2px;
+  opacity:.85;
+}
+.shape.s{width:12px;height:11px}
+.shape.m{width:17px;height:9px}
+.shape.l{width:19px;height:14px}
+.switch{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  background:#0a1518;
+  border:1px solid var(--line);
+  border-radius:10px;
+  padding:6px 11px;
+  font-size:12px;
+  font-weight:700;
+  color:var(--mut);
+  transition:all .16s;
+}
+.switch i{
+  width:30px;
+  height:16px;
+  border-radius:9px;
+  background:#1b2c30;
+  position:relative;
+  transition:background .18s;
+  flex:none;
+}
+.switch i::after{
+  content:'';
+  position:absolute;
+  top:2px;
+  left:2px;
+  width:12px;
+  height:12px;
+  border-radius:50%;
+  background:#54696c;
+  transition:all .18s;
+}
+.switch[aria-checked="true"]{
+  color:var(--am);
+  border-color:#3f3216;
+}
+.switch[aria-checked="true"] i{
+  background:#4a3a17;
+}
+.switch[aria-checked="true"] i::after{
+  left:16px;
+  background:var(--am);
+  box-shadow:0 0 9px rgba(255,182,61,.7);
+}
+.scaler{
+  display:flex;
+  align-items:center;
+  gap:9px;
+  background:#0a1518;
+  border:1px solid var(--line);
+  border-radius:10px;
+  padding:5px 12px;
+}
+.scaler output{
+  font-family:var(--mono);
+  font-size:12px;
+  font-weight:700;
+  color:var(--am);
+  min-width:42px;
+  text-align:right;
+}
+input[type=range]{
+  -webkit-appearance:none;
+  appearance:none;
+  width:112px;
+  height:4px;
+  border-radius:2px;
+  background:linear-gradient(90deg,#4a3a17,#1e383e);
+  cursor:pointer;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;
+  width:15px;
+  height:15px;
+  border-radius:50%;
+  background:radial-gradient(circle at 35% 30%,#ffd88a,var(--am2));
+  border:1px solid #6b5218;
+  box-shadow:0 0 11px rgba(255,182,61,.6);
+}
+input[type=range]::-moz-range-thumb{
+  width:15px;
+  height:15px;
+  border-radius:50%;
+  background:var(--am);
+  border:1px solid #6b5218;
+}
+.mini{
+  border:1px solid var(--line);
+  background:#0b171b;
+  color:var(--mut);
+  border-radius:7px;
+  padding:5px 10px;
+  font-size:11px;
+  font-weight:700;
+  transition:all .15s;
+}
+.mini:hover{
+  color:var(--am);
+  border-color:#3f3216;
+}
+.selinp{
+  background:#071316;
+  border:1px solid var(--line);
+  border-radius:8px;
+  padding:6px 26px 6px 9px;
+  font-size:11.5px;
+  font-weight:700;
+  appearance:none;
+  -webkit-appearance:none;
+  cursor:pointer;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%238fabb0' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;
+  background-position:right 8px center;
+}
+.selinp:focus{
+  outline:none;
+  border-color:var(--am);
+}
+
+/* ── корпус и матрица (тип табло сохранён) ────────────────────── */
+#fsRoot{
+  position:relative;
+}
+.bezel{
+  position:relative;
+  border-radius:16px;
+  padding:15px 15px 11px;
+  background:linear-gradient(160deg,#232b35 0%,#141a22 30%,#0d1117 70%,#1a212b 100%);
+  border:1px solid #38445a;
+  box-shadow:0 26px 64px rgba(0,0,0,.62),inset 0 1px 0 rgba(255,255,255,.08),inset 0 -2px 8px rgba(0,0,0,.5);
+}
+.screw{
+  position:absolute;
+  width:9px;
+  height:9px;
+  border-radius:50%;
+  background:radial-gradient(circle at 35% 30%,#7c8b9c,#2a3340 70%);
+  box-shadow:inset 0 -1px 2px rgba(0,0,0,.8);
+}
+.screw::after{
+  content:'';
+  position:absolute;
+  left:1px;
+  right:1px;
+  top:4px;
+  height:1px;
+  background:#0d1117;
+  transform:rotate(38deg);
+}
+.screw.tl{top:6px;left:6px}
+.screw.tr{top:6px;right:6px}
+.screw.bl{bottom:6px;left:6px}
+.screw.br{bottom:6px;right:6px}
+.plate{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin:0 4px 9px;
+}
+.plate .tag{
+  font-family:var(--disp);
+  font-size:9.5px;
+  letter-spacing:.2em;
+  color:#6f8093;
+  text-transform:uppercase;
+}
+.plate .led{
+  width:6px;
+  height:6px;
+  border-radius:50%;
+  background:var(--gr);
+  box-shadow:0 0 9px var(--gr);
+  animation:blip 2.4s infinite;
+}
+.plate .rule{
+  flex:1;
+  height:1px;
+  background:linear-gradient(90deg,#38445a,transparent);
+}
+.plate .ib{
+  width:28px;
+  height:24px;
+  border-radius:6px;
+}
+.plate .ib svg.ic{
+  width:14px;
+  height:14px;
+}
+.board-scroll{
+  overflow-x:auto;
+  overflow-y:hidden;
+  border-radius:9px;
+  background:#080604;
+  border:1px solid #060a10;
+  box-shadow:inset 0 0 32px rgba(0,0,0,.92);
+}
+.board-wrap{
+  position:relative;
+  width:max-content;
+  margin:0 auto;
+}
+#boardCanvas,#tickerCanvas{
+  display:block;
+}
+.glass,.scanlines,.vignette{
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  border-radius:8px;
+}
+.glass{
+  background:linear-gradient(112deg,rgba(255,255,255,.09) 0%,rgba(255,255,255,.02) 22%,transparent 40%,transparent 72%,rgba(255,255,255,.035) 100%);
+  transition:opacity .3s;
+}
+.scanlines{
+  opacity:.5;
+  background:repeating-linear-gradient(0deg,rgba(0,0,0,.22) 0 1px,transparent 1px 3px);
+}
+.vignette{
+  box-shadow:inset 0 0 62px rgba(0,0,0,.66);
+}
+body.matte .glass{
+  opacity:0;
+}
+.bezel.refresh .board-wrap{
+  animation:refresh .38s steps(3);
+}
+@keyframes refresh{
+  0%{filter:brightness(1.6) contrast(1.15)}
+  40%{filter:brightness(.82)}
+  100%{filter:brightness(1)}
+}
+.bezel.dropping{
+  border-color:var(--hub2);
+  box-shadow:0 0 0 3px rgba(15,181,165,.25),0 26px 64px rgba(0,0,0,.62);
+}
+.ticksep{
+  height:1px;
+  margin:7px 2px;
+  background:linear-gradient(90deg,transparent,#3d2f12 20%,#3d2f12 80%,transparent);
+}
+#fsExit{
+  display:none;
+  position:absolute;
+  top:12px;
+  right:14px;
+  z-index:6;
+}
+body.fs #fsExit{
+  display:inline-flex;
+}
+body.fs #fsRoot{
+  position:fixed;
+  inset:0;
+  z-index:200;
+  background:radial-gradient(1200px 700px at 50% 30%,#0b0e13,#04060a);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:20px;
+}
+#fsRoot:fullscreen{
+  background:radial-gradient(1200px 700px at 50% 30%,#0b0e13,#04060a);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:20px;
+}
+body.fs .board-scroll,#fsRoot:fullscreen .board-scroll{
+  overflow:visible;
+}
+.caption{
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px 16px;
+  justify-content:space-between;
+  margin:11px 4px 0;
+  font-size:11px;
+  color:var(--mut2);
+  font-weight:600;
+}
+.caption b{
+  color:var(--am);
+}
+.caption kbd{
+  font-family:var(--mono);
+  font-size:10px;
+  background:#0d1c20;
+  border:1px solid var(--line);
+  border-bottom-width:2px;
+  border-radius:4px;
+  padding:1px 5px;
+  color:var(--mut);
+}
+.sr-only{
+  position:absolute;
+  width:1px;
+  height:1px;
+  overflow:hidden;
+  clip:rect(0 0 0 0);
+}
+
+/* ── легенда нумерации ────────────────────────────────────────── */
+.legend{
+  display:flex;
+  gap:7px;
+  overflow-x:auto;
+  padding:2px 2px 8px;
+}
+.lg{
+  flex:none;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  border:1px solid var(--line);
+  border-radius:99px;
+  padding:5px 12px 5px 8px;
+  background:#0a1518;
+  transition:all .16s;
+}
+.lg:hover{
+  border-color:currentColor;
+  box-shadow:0 0 16px -4px currentColor;
+}
+.lg i{
+  width:11px;
+  height:11px;
+  flex:none;
+  clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%);
+  box-shadow:0 0 9px currentColor;
+}
+.lg b{
+  font-family:var(--mono);
+  font-size:11px;
+  font-weight:700;
+}
+.lg span{
+  font-size:10.5px;
+  font-weight:700;
+  color:var(--mut);
+  white-space:nowrap;
+}
+
+/* ── командная строка ─────────────────────────────────────────── */
+.term{
+  position:relative;
+  z-index:1;
+  border:1px solid #14625a;
+  border-radius:15px;
+  background:linear-gradient(180deg,#08161a,#050e11);
+  box-shadow:0 18px 50px rgba(0,0,0,.55),inset 0 1px 0 rgba(80,255,235,.07);
+  overflow:hidden;
+}
+.term::after{
+  content:'';
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  background:repeating-linear-gradient(0deg,rgba(0,255,220,.02) 0 1px,transparent 1px 3px);
+}
+.term-head{
+  display:flex;
+  align-items:center;
+  gap:9px;
+  padding:10px 13px;
+  border-bottom:1px solid #123a3a;
+  background:#0a1a1e;
+  flex-wrap:wrap;
+}
+.term-head .dots{
+  display:flex;
+  gap:5px;
+}
+.term-head .dots span{
+  width:9px;
+  height:9px;
+  border-radius:50%;
+}
+.term-head .dots .r{background:#e0342f;box-shadow:0 0 7px rgba(224,52,47,.6)}
+.term-head .dots .y{background:#ffb63d;box-shadow:0 0 7px rgba(255,182,61,.6)}
+.term-head .dots .g{background:#22d3c5;box-shadow:0 0 7px rgba(34,211,197,.6)}
+.term-head b{
+  font-family:var(--disp);
+  font-size:11.5px;
+  letter-spacing:.13em;
+  color:var(--hub2);
+}
+.term-head .hint{
+  font-size:10.5px;
+  color:var(--mut2);
+  font-weight:700;
+}
+.term-head .sp{
+  flex:1;
+}
+.term-out{
+  height:300px;
+  overflow-y:auto;
+  padding:12px 14px;
+  font-family:var(--mono);
+  font-size:12.5px;
+  line-height:1.65;
+  position:relative;
+  z-index:1;
+}
+.term-out .ln{
+  display:flex;
+  gap:9px;
+  padding:1px 0;
+  animation:lnin .18s ease;
+}
+@keyframes lnin{
+  from{opacity:0;transform:translateX(-5px)}
+}
+.term-out .ln .t{
+  color:#3f5c60;
+  flex:none;
+}
+.term-out .ln .m{
+  white-space:pre-wrap;
+  word-break:break-word;
+  min-width:0;
+}
+.term-out .ln.echo .m{color:#a5ece4}
+.term-out .ln.echo .m b{color:var(--hub2)}
+.term-out .ln.ok .m{color:var(--gr)}
+.term-out .ln.err .m{color:var(--rd)}
+.term-out .ln.warn .m{color:var(--am)}
+.term-out .ln.info .m{color:#8fb8bd}
+.term-out .ln.head .m{color:var(--hub2);font-weight:700}
+.term-out .ln.dim .m{color:#4e6a6e}
+.term-out .ln.bell .m{color:var(--yellow)}
+.term-out .ln.del .m{color:#ff8a94;font-weight:700}
+.term-syntax{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:6px;
+  padding:9px 13px;
+  border-top:1px solid #123a3a;
+  border-bottom:1px solid #123a3a;
+  background:#071316;
+  min-height:40px;
+  position:relative;
+  z-index:1;
+}
+.term-syntax.danger{
+  background:#170b0d;
+  border-color:#5c2020;
+}
+.tok{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  font-family:var(--mono);
+  font-size:11px;
+  font-weight:700;
+  border:1px solid #1c4a48;
+  background:#0a1a1c;
+  color:#bfe8e4;
+  border-radius:6px;
+  padding:3px 8px;
+}
+.tok small{
+  font-family:var(--ui);
+  font-size:9px;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  color:#4e7a78;
+}
+.tok.miss{
+  border-color:#5c2020;
+  color:var(--rd);
+  background:#1a0e0e;
+}
+.tok.del{
+  border-color:#ff8a94;
+  color:#fff;
+  background:linear-gradient(180deg,#e0342f,#a81f1c);
+}
+.tok.del small{
+  color:#ffd9db;
+}
+.tok i{
+  width:8px;
+  height:8px;
+  border-radius:2px;
+  transform:rotate(45deg);
+  box-shadow:0 0 6px currentColor;
+}
+.term-state{
+  margin-left:auto;
+  font-size:11px;
+  font-weight:800;
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+}
+.term-state.ok{color:var(--gr)}
+.term-state.bad{color:var(--am)}
+.term-state.idle{color:var(--mut2)}
+.term-state.del{color:#ff8a94}
+.term-in{
+  display:flex;
+  align-items:center;
+  gap:9px;
+  padding:12px 13px;
+  position:relative;
+  z-index:1;
+}
+.term-in .prompt{
+  font-family:var(--mono);
+  font-size:13px;
+  font-weight:700;
+  color:var(--hub2);
+  white-space:nowrap;
+  text-shadow:0 0 10px rgba(15,181,165,.5);
+  max-width:190px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.term-in input{
+  flex:1;
+  min-width:0;
+  background:#040b0d;
+  border:1px solid #1c4a48;
+  border-radius:9px;
+  padding:11px 13px;
+  font-family:var(--mono);
+  font-size:14px;
+  color:#d8fff9;
+  caret-color:var(--hub2);
+}
+.term-in input::placeholder{
+  color:#3f5c60;
+}
+.term-in input:focus{
+  outline:none;
+  border-color:var(--hub2);
+  box-shadow:0 0 0 3px rgba(15,181,165,.16);
+}
+.term-in input.delmode{
+  border-color:#a81f1c;
+  color:#ffd9db;
+  box-shadow:0 0 0 3px rgba(224,52,47,.14);
+}
+.term-in input.err{
+  border-color:var(--rd);
+  animation:shake .4s;
+}
+@keyframes shake{
+  0%,100%{transform:none}
+  25%{transform:translateX(-4px)}
+  75%{transform:translateX(4px)}
+}
+.btn{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:7px;
+  border-radius:var(--rs);
+  border:1px solid var(--line);
+  background:#102227;
+  color:var(--ink);
+  font-weight:800;
+  font-size:12.5px;
+  padding:10px 15px;
+  transition:all .15s;
+}
+.btn:hover{
+  border-color:var(--line2);
+  background:#163036;
+}
+.btn:active{
+  transform:scale(.96);
+}
+.btn.primary{
+  background:linear-gradient(180deg,#3ee6d6,var(--hub));
+  color:#031414;
+  border-color:#0d8d81;
+  box-shadow:0 5px 18px rgba(15,181,165,.28);
+}
+.btn.primary:hover{
+  filter:brightness(1.08);
+}
+.btn.danger{
+  background:linear-gradient(180deg,#ff6b62,#c9241f);
+  color:#fff;
+  border-color:#ff8a94;
+  box-shadow:0 5px 18px rgba(224,52,47,.3);
+}
+.term-ac{
+  display:none;
+  flex-wrap:wrap;
+  gap:5px;
+  padding:0 13px 12px;
+  position:relative;
+  z-index:1;
+}
+.term-ac.on{
+  display:flex;
+}
+.ac-item{
+  border:1px dashed #1c4a48;
+  background:#08161a;
+  color:#8fd7d0;
+  border-radius:99px;
+  padding:4px 11px;
+  font-family:var(--mono);
+  font-size:11px;
+  transition:all .14s;
+}
+.ac-item:hover,.ac-item.first{
+  color:#031414;
+  background:var(--hub2);
+  border-color:var(--hub2);
+}
+.ac-item.del{
+  border-color:#a81f1c;
+  color:#ff8a94;
+}
+.ac-item.del:hover,.ac-item.del.first{
+  background:#e0342f;
+  color:#fff;
+  border-color:#e0342f;
+}
+
+/* ── уведомления ──────────────────────────────────────────────── */
+#toasts{
+  position:fixed;
+  left:16px;
+  bottom:16px;
+  z-index:300;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  max-width:min(400px,calc(100vw - 32px));
+}
+.toast{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  background:#102227;
+  border:1px solid var(--line2);
+  border-left:3px solid var(--blue);
+  border-radius:10px;
+  padding:11px 13px;
+  font-size:12.5px;
+  font-weight:700;
+  box-shadow:var(--shadow);
+  animation:toastin .3s cubic-bezier(.2,.9,.3,1.2);
+}
+.toast.ok{border-left-color:var(--gr)}
+.toast.warn{border-left-color:var(--am)}
+.toast.danger{border-left-color:var(--rd)}
+.toast.bell{border-left-color:var(--yellow)}
+.toast .msg{
+  flex:1;
+  min-width:0;
+}
+.toast .undo{
+  border:1px solid #6b5218;
+  background:#241b0a;
+  color:var(--am);
+  border-radius:6px;
+  padding:5px 10px;
+  font-size:11.5px;
+  font-weight:800;
+  flex:none;
+}
+.toast .x{
+  border:0;
+  background:transparent;
+  color:var(--mut2);
+  flex:none;
+  display:flex;
+  padding:2px;
+}
+.toast.out{
+  animation:toastout .25s forwards;
+}
+@keyframes toastin{
+  from{opacity:0;transform:translateY(14px) scale(.96)}
+  to{opacity:1;transform:none}
+}
+@keyframes toastout{
+  to{opacity:0;transform:translateX(-16px)}
+}
+
+/* ── адаптив ──────────────────────────────────────────────────── */
+@media (max-width:960px){
+  .topline{
+    gap:8px;
+  }
+  .nameinp{
+    width:180px;
+  }
+  .scrub{
+    order:5;
+    flex:1 1 100%;
+  }
+  .scrub input[type=range]{
+    flex:1;
+    width:auto;
+  }
+  main{
+    padding:206px 10px 22px;
+  }
+  .term-out{
+    height:250px;
+  }
+  .term-in{
+    flex-wrap:wrap;
+  }
+  .term-in .prompt{
+    flex:1 1 100%;
+    max-width:none;
+  }
+  .term-in input{
+    flex:1 1 100%;
+  }
+  .term-in .btn{
+    flex:1;
+  }
+  #toasts{
+    left:10px;
+    bottom:10px;
+  }
+}
+@media (max-width:560px){
+  .clock{
+    font-size:18px;
+    padding:5px 11px;
+  }
+  .transport{
+    flex:1 1 100%;
+  }
+  .brand .mark{
+    width:36px;
+    height:36px;
+  }
+  main{
+    padding:250px 9px 20px;
+  }
+}
+@media (prefers-reduced-motion:reduce){
+  .drift{animation:none}
+  *{transition-duration:.01ms !important}
+}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="i-bus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+  <rect x="3.5" y="3.5" width="17" height="13.5" rx="3"/>
+  <path d="M3.5 10h17M9 3.5v6.5M15 3.5v6.5"/>
+  <circle cx="7.5" cy="13.6" r=".7" fill="currentColor" stroke="none"/>
+  <circle cx="16.5" cy="13.6" r=".7" fill="currentColor" stroke="none"/>
+  <path d="M6.5 17v2.6M17.5 17v2.6M5 19.6h3M16 19.6h3"/>
+</symbol>
+<symbol id="i-play" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5l11 6.5-11 6.5z"/></symbol>
+<symbol id="i-pause" viewBox="0 0 24 24" fill="currentColor"><rect x="6.5" y="5" width="3.6" height="14" rx="1"/><rect x="13.9" y="5" width="3.6" height="14" rx="1"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.5l5 5L19.5 7"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+<symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4.5h6V7M6.5 7l1 13h9l1-13M10 11v5.5M14 11v5.5"/></symbol>
+<symbol id="i-sound" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5v5h3.5L13 19V5L7.5 9.5H4z"/><path d="M16.5 8.7a4.6 4.6 0 010 6.6M19 6.2a8.2 8.2 0 010 11.6"/></symbol>
+<symbol id="i-mute" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5v5h3.5L13 19V5L7.5 9.5H4z"/><path d="M16.5 9.5l5 5M21.5 9.5l-5 5"/></symbol>
+<symbol id="i-fs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></symbol>
+<symbol id="i-fsx" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></symbol>
+<symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3.5 2"/></symbol>
+</defs></svg>
+
+<div class="grain"></div>
+<div class="drift"></div>
+
+<header id="top">
+  <div class="topline">
+    <div class="brand">
+      <div class="mark"><svg><use href="#i-bus"/></svg></div>
+      <div class="tt">
+        <h1>АВТОВОКЗАЛ</h1>
+        <input class="nameinp" id="stationName" maxlength="26" value="ЦЕНТРАЛЬНЫЙ" aria-label="Название автовокзала" spellcheck="false">
+      </div>
+    </div>
+    <div class="clock" id="clock"><i></i><span id="clockT">00:00</span><small id="dayT">сут 1</small></div>
+    <div class="transport">
+      <button class="tbtn" id="bPause" data-a="pause" title="Пауза / ход времени (Пробел)"><svg class="ic"><use href="#i-pause"/></svg></button>
+      <button class="tbtn" data-a="minus5" title="Назад на 5 минут">−5м</button>
+      <button class="tbtn" data-a="minus1" title="Назад на минуту">−1м</button>
+      <button class="tbtn" data-a="plus1" title="Вперёд на минуту">+1м</button>
+      <button class="tbtn" data-a="plus5" title="Вперёд на 5 минут">+5м</button>
+      <div class="speeds" id="speeds" title="Скорость хода времени">
+        <button data-a="speed" data-v="1">1с=1с</button>
+        <button data-a="speed" data-v="10">1м=6с</button>
+        <button data-a="speed" data-v="40">1м=1.5с</button>
+      </div>
+      <div class="timeset">
+        <input type="time" id="setTime" value="00:00" aria-label="Установить время">
+        <button class="tbtn" data-a="settime" title="Установить время"><svg class="ic"><use href="#i-clock"/></svg></button>
+      </div>
+    </div>
+    <div class="scrub">
+      <span class="lbl">Перемотка</span>
+      <input type="range" id="scrub" min="0" max="1439" value="0" step="1" aria-label="Перемотка времени суток">
+      <output id="scrubV">00:00</output>
+    </div>
+    <div class="spacer"></div>
+    <button class="ib on" id="bSound" data-a="sound" title="Звук: звонок и объявления" aria-pressed="true"><svg class="ic"><use href="#i-sound"/></svg></button>
+    <button class="ib" data-a="fs" title="Табло во весь экран (F)"><svg class="ic"><use href="#i-fs"/></svg></button>
+  </div>
+  <div class="ornament"></div>
+</header>
+
+<main>
+  <svg class="wires" viewBox="0 0 1200 200" preserveAspectRatio="none" aria-hidden="true">
+    <g stroke="#22d3c5" stroke-opacity=".12" fill="none" stroke-width="1.4">
+      <path d="M40 0v150M40 30h60M40 58l60-28M1160 0v150M1160 30h-60M1160 58l-60-28M600 0v120M600 28h-50M600 28h50"/>
+      <path d="M0 40Q300 74 600 40T1200 40" stroke-opacity=".16"/>
+      <path d="M0 64Q300 94 600 64T1200 64"/>
+      <path d="M160 50v16M320 60v14M480 56v15M720 56v15M880 60v14M1040 50v16" stroke-opacity=".09"/>
+    </g>
+  </svg>
+
+  <section class="stage" aria-label="Матричное табло автовокзала">
+    <div class="rail">
+      <div class="grp">
+        <span class="lbl">Тип табло</span>
+        <div class="seg" id="sizeSeg">
+          <button data-a="size" data-v="s" title="Малое — почти квадратное, для перрона"><i class="shape s"></i>Малое</button>
+          <button data-a="size" data-v="m" title="Среднее — для зала ожидания"><i class="shape m"></i>Среднее</button>
+          <button data-a="size" data-v="l" title="Большое — шире и выше"><i class="shape l"></i>Большое</button>
+        </div>
+      </div>
+      <button class="switch" role="switch" aria-checked="true" id="swGloss" data-a="gloss"><i></i>Глянец</button>
+      <button class="switch" role="switch" aria-checked="false" id="swTime" data-a="timeonly"><i></i>Только время</button>
+      <div class="grp">
+        <span class="lbl">Окно</span>
+        <select class="selinp" id="windowSel" aria-label="Окно вывода на табло">
+          <option value="30">30 мин</option>
+          <option value="60">60 мин</option>
+          <option value="120" selected>120 мин</option>
+          <option value="180">180 мин</option>
+          <option value="1440">Весь день</option>
+        </select>
+      </div>
+      <div class="grp">
+        <span class="lbl">Строк</span>
+        <select class="selinp" id="rowsSel" aria-label="Строк на табло">
+          <option value="0">По типу</option>
+          <option value="4">4</option>
+          <option value="6">6</option>
+          <option value="8">8</option>
+          <option value="12">12</option>
+        </select>
+      </div>
+      <div class="grp" style="margin-left:auto">
+        <div class="scaler">
+          <span class="lbl">Масштаб</span>
+          <input type="range" id="scale" min="45" max="165" value="100" aria-label="Масштаб табло">
+          <output id="scaleV">100%</output>
+        </div>
+        <button class="mini" data-a="fit">Вписать</button>
+        <button class="mini" data-a="fs">Весь экран</button>
+      </div>
+    </div>
+
+    <div id="fsRoot">
+      <div class="bezel" id="bezel">
+        <span class="screw tl"></span><span class="screw tr"></span><span class="screw bl"></span><span class="screw br"></span>
+        <div class="plate">
+          <span class="led"></span>
+          <span class="tag" id="plateTag">АВТОВОКЗАЛ ЦЕНТРАЛЬНЫЙ · МАТРИЧНОЕ ТАБЛО · А-М</span>
+          <span class="rule"></span>
+          <span class="tag">220 В · 50 ГЦ</span>
+          <button class="ib" data-a="fs" title="Во весь экран (F)"><svg class="ic"><use href="#i-fs"/></svg></button>
+        </div>
+        <div class="board-scroll" id="boardScroll">
+          <div class="board-wrap">
+            <canvas id="boardCanvas" aria-label="Матричное табло прибытий и отправлений автобусов"></canvas>
+            <div class="ticksep"></div>
+            <canvas id="tickerCanvas" aria-label="Бегущая строка"></canvas>
+            <div class="glass"></div><div class="scanlines"></div><div class="vignette"></div>
+          </div>
+        </div>
+      </div>
+      <button class="btn" id="fsExit" data-a="fs"><svg class="ic"><use href="#i-fsx"/></svg>Выйти · Esc</button>
+    </div>
+
+    <p class="sr-only" id="srBoard" aria-live="polite"></p>
+    <div class="caption">
+      <span>Удаление: та же команда, что и для вывода, но со словом <b>удалить</b> в конце.</span>
+      <span><kbd>Ctrl</kbd>+<kbd>K</kbd> строка · <kbd>Пробел</kbd> пауза · <kbd>F</kbd> экран · файл .json/.csv можно бросить на табло</span>
+    </div>
+  </section>
+
+  <div class="legend" id="legend" aria-label="Нумерация автобусных маршрутов"></div>
+
+  <section class="term" id="term" aria-label="Командная строка вывода на табло">
+    <div class="term-head">
+      <span class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></span>
+      <b>КОМАНДНАЯ СТРОКА ТАБЛО</b>
+      <span class="hint">Enter — выполнить · Tab — дополнение · ↑↓ — история</span>
+      <span class="sp"></span>
+      <button class="mini" data-a="help">Справка</button>
+      <button class="mini" data-a="bell">Звонок</button>
+      <button class="mini" data-a="clear-term">Очистить вывод</button>
+    </div>
+    <div class="term-out" id="termOut"></div>
+    <div class="term-syntax" id="termSyntax"></div>
+    <div class="term-in">
+      <span class="prompt" id="prompt">ЦЕНТРАЛЬНЫЙ&gt;</span>
+      <input id="cmd" autocomplete="off" spellcheck="false" autocapitalize="off"
+             placeholder="автобус 301 Минск — Гомель приб 08:41 отпр 08:47 платформа 3">
+      <button class="btn primary" id="bRun" data-a="run"><svg class="ic"><use href="#i-check"/></svg>Вывести</button>
+    </div>
+    <div class="term-ac" id="ac"></div>
+  </section>
+</main>
+
+<input type="file" id="fileInput" accept=".json,.csv,application/json,text/csv" hidden>
+<div id="toasts" aria-live="polite"></div>
+
+<script>
+(function(){
+'use strict';
+
+/* ═══════════════════════════════════════════════════════════════════════
+   1. УТИЛИТЫ
+   ═══════════════════════════════════════════════════════════════════════ */
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid = () => 'b' + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+const clamp = (v,a,b) => Math.min(b, Math.max(a,v));
+const pad2 = n => String(n).padStart(2,'0');
+const fmt = m => { m = ((Math.round(m)%1440)+1440)%1440; return pad2(Math.floor(m/60))+':'+pad2(m%60); };
+const parseT = v => {
+  const m = /^(\d{1,2})[:.](\d{2})$/.exec(String(v||'').trim());
+  return m ? clamp(+m[1],0,23)*60 + clamp(+m[2],0,59) : null;
+};
+const norm = s => String(s||'').toLowerCase().replace(/ё/g,'е').replace(/[\s.\-–—«»"']/g,'');
+const debounce = (fn,ms) => { let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a),ms); }; };
+const STORE = 'bus-terminal-board-v1';
+
+/* ═══════════════════════════════════════════════════════════════════════
+   2. МАТРИЧНЫЙ ШРИФТ 5×7 — тип табло сохранён без изменений
+   ═══════════════════════════════════════════════════════════════════════ */
+const FONT = {};
+function glyph(ch, rows){ FONT[ch] = rows.map(r=>parseInt(r,2)); }
+glyph(' ', ['00000','00000','00000','00000','00000','00000','00000']);
+glyph('0', ['01110','10001','10011','10101','11001','10001','01110']);
+glyph('1', ['00100','01100','00100','00100','00100','00100','01110']);
+glyph('2', ['01110','10001','00001','00010','00100','01000','11111']);
+glyph('3', ['11111','00010','00100','00010','00001','10001','01110']);
+glyph('4', ['00010','00110','01010','10010','11111','00010','00010']);
+glyph('5', ['11111','10000','11110','00001','00001','10001','01110']);
+glyph('6', ['00110','01000','10000','11110','10001','10001','01110']);
+glyph('7', ['11111','00001','00010','00100','01000','01000','01000']);
+glyph('8', ['01110','10001','10001','01110','10001','10001','01110']);
+glyph('9', ['01110','10001','10001','01111','00001','00010','01100']);
+glyph('А', ['01110','10001','10001','11111','10001','10001','10001']);
+glyph('Б', ['11111','10000','10000','11110','10001','10001','11110']);
+glyph('В', ['11110','10001','10001','11110','10001','10001','11110']);
+glyph('Г', ['11111','10000','10000','10000','10000','10000','10000']);
+glyph('Д', ['00110','01010','01010','01010','01010','11111','10001']);
+glyph('Е', ['11111','10000','10000','11110','10000','10000','11111']);
+glyph('Ё', ['01010','00000','11111','10000','11110','10000','11111']);
+glyph('Ж', ['10101','10101','10101','01110','10101','10101','10101']);
+glyph('З', ['01110','10001','00001','00110','00001','10001','01110']);
+glyph('И', ['10001','10001','10011','10101','11001','10001','10001']);
+glyph('Й', ['01010','10001','10011','10101','11001','10001','10001']);
+glyph('К', ['10001','10010','10100','11000','10100','10010','10001']);
+glyph('Л', ['00111','01001','01001','01001','01001','01001','10001']);
+glyph('М', ['10001','11011','10101','10101','10001','10001','10001']);
+glyph('Н', ['10001','10001','10001','11111','10001','10001','10001']);
+glyph('О', ['01110','10001','10001','10001','10001','10001','01110']);
+glyph('П', ['11111','10001','10001','10001','10001','10001','10001']);
+glyph('Р', ['11110','10001','10001','11110','10000','10000','10000']);
+glyph('С', ['01110','10001','10000','10000','10000','10001','01110']);
+glyph('Т', ['11111','00100','00100','00100','00100','00100','00100']);
+glyph('У', ['10001','10001','10001','01111','00001','00010','01100']);
+glyph('Ф', ['00100','01110','10101','10101','10101','01110','00100']);
+glyph('Х', ['10001','10001','01010','00100','01010','10001','10001']);
+glyph('Ц', ['10010','10010','10010','10010','10010','11111','00001']);
+glyph('Ч', ['10001','10001','10001','01111','00001','00001','00001']);
+glyph('Ш', ['10101','10101','10101','10101','10101','10101','11111']);
+glyph('Щ', ['10101','10101','10101','10101','10101','11111','00001']);
+glyph('Ъ', ['11000','01000','01000','01110','01001','01001','01110']);
+glyph('Ы', ['10001','10001','10001','11101','10011','10011','11101']);
+glyph('Ь', ['10000','10000','10000','11110','10001','10001','11110']);
+glyph('Э', ['01110','10001','00001','00111','00001','10001','01110']);
+glyph('Ю', ['10110','11001','11001','11001','11001','11001','10110']);
+glyph('Я', ['01111','10001','10001','01111','00101','01001','10001']);
+glyph('D', ['11110','10001','10001','10001','10001','10001','11110']);
+glyph('F', ['11111','10000','10000','11110','10000','10000','10000']);
+glyph('G', ['01110','10001','10000','10111','10001','10001','01111']);
+glyph('I', ['01110','00100','00100','00100','00100','00100','01110']);
+glyph('L', ['10000','10000','10000','10000','10000','10000','11111']);
+glyph('N', ['10001','11001','10101','10011','10001','10001','10001']);
+glyph('R', ['11110','10001','10001','11110','10100','10010','10001']);
+glyph('S', ['01111','10000','10000','01110','00001','00001','11110']);
+glyph('U', ['10001','10001','10001','10001','10001','10001','01110']);
+glyph('V', ['10001','10001','10001','10001','10001','01010','00100']);
+glyph('W', ['10001','10001','10001','10101','10101','11011','10001']);
+glyph('Z', ['11111','00001','00010','00100','01000','10000','11111']);
+glyph('.', ['00000','00000','00000','00000','00000','01100','01100']);
+glyph(',', ['00000','00000','00000','00000','00000','00100','01000']);
+glyph(':', ['00000','00100','00100','00000','00100','00100','00000']);
+glyph('!', ['00100','00100','00100','00100','00100','00000','00100']);
+glyph('?', ['01110','10001','00001','00110','00100','00000','00100']);
+glyph('-', ['00000','00000','00000','01110','00000','00000','00000']);
+glyph('—', ['00000','00000','00000','11111','00000','00000','00000']);
+glyph('–', ['00000','00000','00000','11111','00000','00000','00000']);
+glyph('/', ['00001','00010','00010','00100','01000','01000','10000']);
+glyph('(', ['00010','00100','01000','01000','01000','00100','00010']);
+glyph(')', ['01000','00100','00010','00010','00010','00100','01000']);
+glyph('+', ['00000','00100','00100','11111','00100','00100','00000']);
+glyph('№', ['10100','11100','11111','11111','10111','10100','10111']);
+glyph("'", ['00100','00100','00000','00000','00000','00000','00000']);
+glyph('…', ['00000','00000','00000','00000','00000','00000','10101']);
+glyph('·', ['00000','00000','00000','00100','00000','00000','00000']);
+glyph('«', ['00101','01010','10100','01010','00101','00000','00000']);
+glyph('»', ['10100','01010','00101','01010','10100','00000','00000']);
+glyph('\uE001', ['00000','00100','01110','11111','01110','00100','00000']);
+glyph('\uE002', ['01010','11111','01010','00000','01010','11111','01010']);
+glyph('\uE003', ['00000','01110','01010','01010','01010','01110','00000']);
+glyph('\uE004', ['00100','01110','11011','01110','00100','00000','00000']);
+glyph('\uE005', ['11011','01110','00100','01110','11011','00000','00000']);
+glyph('\uE006', ['00100','10101','01110','11111','01110','10101','00100']);
+glyph('\uE007', ['10001','01010','00100','01010','10001','00000','11111']);
+const LAT = {A:'А',B:'В',C:'С',E:'Е',H:'Н',K:'К',M:'М',O:'О',P:'Р',S:'С',T:'Т',X:'Х',Y:'У'};
+function glyphOf(ch){
+  ch = ch.toUpperCase();
+  if(LAT[ch]) ch = LAT[ch];
+  return FONT[ch] || FONT[' '];
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   3. НУМЕРАЦИЯ АВТОБУСНЫХ МАРШРУТОВ
+   ═══════════════════════════════════════════════════════════════════════ */
+const CLASSES = [
+  {lo:1,    hi:99,   code:'ГО', name:'Городские',                  color:'#ff4d5e', emb:'\uE003'},
+  {lo:100,  hi:299,  code:'ПР', name:'Пригородные',                color:'#2f7dff', emb:'\uE001'},
+  {lo:300,  hi:599,  code:'МГ', name:'Междугородные',              color:'#35e08c', emb:'\uE004'},
+  {lo:600,  hi:799,  code:'ЭК', name:'Междугородные экспресс',     color:'#00c46a', emb:'\uE005'},
+  {lo:800,  hi:899,  code:'МН', name:'Международные',              color:'#ffd23f', emb:'\uE006'},
+  {lo:900,  hi:999,  code:'ЗК', name:'Заказные · туристические',   color:'#7fd4ff', emb:'\uE002'},
+  {lo:1000, hi:9999, code:'СЛ', name:'Служебные · резерв',         color:'#ff8a3d', emb:'\uE007'}
+];
+const OTHER = {lo:0, hi:0, code:'—', name:'Вне классификации', color:'#9fb2c4', emb:'\uE003'};
+function classify(num){
+  const n = parseInt(String(num).replace(/\D/g,''),10);
+  if(isNaN(n)) return OTHER;
+  for(const c of CLASSES) if(n >= c.lo && n <= c.hi) return c;
+  return OTHER;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   4. СОСТОЯНИЕ
+   ═══════════════════════════════════════════════════════════════════════ */
+function fresh(){
+  return {
+    v:1,
+    name:'ЦЕНТРАЛЬНЫЙ',
+    sim:{sec:0, speed:1, paused:false, day:1},
+    view:{size:'m', scale:1, fit:true, gloss:true, timeOnly:false, window:120, rows:0, pageSec:8},
+    settings:{
+      sound:true,
+      announcer:true,
+      ticker:'УВАЖАЕМЫЕ ПАССАЖИРЫ! ПОСАДКА В АВТОБУСЫ ПРОИЗВОДИТСЯ ЧЕРЕЗ УКАЗАННЫЕ ПЛАТФОРМЫ. НЕ ОСТАВЛЯЙТЕ БАГАЖ БЕЗ ПРИСМОТРА. АВТОВОКЗАЛ ЖЕЛАЕТ ВАМ ПРИЯТНОЙ ПОЕЗДКИ!'
+    },
+    trips:[]
+  };
+}
+function load(){
+  try{
+    const raw = localStorage.getItem(STORE);
+    if(raw){
+      const o = JSON.parse(raw);
+      const s = fresh();
+      if(typeof o.name === 'string' && o.name.trim()) s.name = o.name;
+      if(o.sim) Object.assign(s.sim, o.sim);
+      if(o.view) Object.assign(s.view, o.view);
+      if(o.settings) Object.assign(s.settings, o.settings);
+      if(Array.isArray(o.trips)) s.trips = o.trips;
+      return s;
+    }
+  }catch(e){}
+  return fresh();
+}
+let S = load();
+let undoStack = [];
+const saveNow = () => { try{ localStorage.setItem(STORE, JSON.stringify(S)); }catch(e){} };
+const save = debounce(saveNow, 400);
+function pushUndo(label){
+  undoStack.push({label, snap: JSON.stringify(S.trips)});
+  if(undoStack.length > 25) undoStack.shift();
+}
+function undo(){
+  const u = undoStack.pop();
+  if(!u){ term('Отмена недоступна: история пуста.','warn'); return; }
+  S.trips = JSON.parse(u.snap);
+  seen = {};
+  boardDirty = true;
+  flicker();
+  term('↶ отменено: ' + u.label, 'ok');
+  toast('Отменено: ' + u.label, 'ok');
+  renderSr();
+  save();
+}
+const stationLabel = () => (S.name || 'ЦЕНТРАЛЬНЫЙ').toUpperCase();
+const shortPrompt = () => {
+  const n = stationLabel();
+  return (n.length > 14 ? n.slice(0,13) + '…' : n) + '>';
+};
+
+/* ═══════════════════════════════════════════════════════════════════════
+   5. СТАТУСЫ РЕЙСОВ
+   нет отправления — рейс только прибывает
+   нет прибытия — рейс только отправляется
+   ═══════════════════════════════════════════════════════════════════════ */
+const ST = {
+  rasp:    {label:'ПО РАСП.',  color:'#d9a13c'},
+  wait:    {label:'ОЖИДАЕТСЯ', color:'#ffb63d'},
+  board:   {label:'ПОСАДКА',   color:'#35e08c', blink:true},
+  arriv:   {label:'ПРИБЫВАЕТ', color:'#3fd6e6', blink:true},
+  arrived: {label:'ПРИБЫЛ',    color:'#35e08c'},
+  dep:     {label:'ОТПРАВЛЕН', color:'#3fd6e6'},
+  gone:    {label:'УШЁЛ',      color:'#7c8b9c'},
+  cancel:  {label:'ОТМЕНЕН',   color:'#ff5d6a', blink:true}
+};
+const lateSt = n => ({label:('ОПАЗД.+'+n).slice(0,10), color:'#ff5d6a'});
+const anchor = t => t.arr != null ? t.arr : t.dep;
+function statusOf(t, now){
+  const a = t.arr != null ? t.arr + t.delay : null;
+  const d = t.dep != null ? t.dep + t.delay : null;
+  const key = (a != null ? a : d) || 0;
+  const mk = (k, extra) => Object.assign({k, a, d, key, past:false}, ST[k], extra||{});
+  if(t.off) return mk('cancel');
+  const past = d != null ? now >= d + 2 : (a != null ? now >= a + 3 : false);
+  if(past) return mk('gone', {past:true});
+  if(d != null && now >= d) return mk('dep');
+  if(d != null && now >= (a != null ? a : d - 10)) return mk('board');
+  if(d == null && a != null && now >= a) return mk('arrived');
+  if(d == null && a != null && now >= a - 3) return mk('arriv');
+  if(t.delay > 0) return Object.assign({k:'late', a, d, key, past:false}, lateSt(t.delay));
+  return (a != null && d == null) ? mk('wait') : mk('rasp');
+}
+function boardTrips(){
+  const now = S.sim.sec/60;
+  const win = S.view.window;
+  const list = S.trips.filter(t=>{
+    const s = statusOf(t, now);
+    if(s.past && !t.hold) return false;
+    const an = anchor(t);
+    if(an == null) return false;
+    const adj = an + t.delay;
+    if(adj - now > win) return false;
+    if(adj - now < -40 && !t.off) return false;
+    return true;
+  });
+  list.sort((x,y)=>{
+    const sx = statusOf(x,now), sy = statusOf(y,now);
+    return sx.key - sy.key || String(x.num).localeCompare(String(y.num),'ru',{numeric:true});
+  });
+  return list;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   6. ЗВУК АВТОВОКЗАЛА
+   ═══════════════════════════════════════════════════════════════════════ */
+let AC = null, speechWarned = false;
+function audio(){
+  if(AC) return;
+  try{ const C = window.AudioContext || window.webkitAudioContext; if(C) AC = new C(); }catch(e){}
+}
+function tone(freq,dur,type,gain,delay){
+  if(!S.settings.sound) return;
+  audio(); if(!AC) return;
+  if(AC.state === 'suspended') AC.resume().catch(()=>{});
+  try{
+    const t0 = AC.currentTime + (delay||0);
+    const o = AC.createOscillator(), g = AC.createGain();
+    o.type = type||'sine';
+    o.frequency.value = freq;
+    g.gain.setValueAtTime(0,t0);
+    g.gain.linearRampToValueAtTime(gain||.08,t0+.012);
+    g.gain.exponentialRampToValueAtTime(.0001,t0+dur);
+    o.connect(g); g.connect(AC.destination);
+    o.start(t0); o.stop(t0+dur+.03);
+  }catch(e){}
+}
+function noise(dur,gain,freq){
+  if(!S.settings.sound) return;
+  audio(); if(!AC) return;
+  if(AC.state === 'suspended') AC.resume().catch(()=>{});
+  try{
+    const len = Math.floor(AC.sampleRate*dur);
+    const b = AC.createBuffer(1,len,AC.sampleRate);
+    const d = b.getChannelData(0);
+    for(let i=0;i<len;i++) d[i] = (Math.random()*2-1)*(1-i/len);
+    const src = AC.createBufferSource(); src.buffer = b;
+    const f = AC.createBiquadFilter(); f.type='bandpass'; f.frequency.value=freq||1400;
+    const g = AC.createGain(); g.gain.value = gain||.05;
+    src.connect(f); f.connect(g); g.connect(AC.destination);
+    src.start();
+  }catch(e){}
+}
+function stationBell(){
+  tone(987.77,.5,'triangle',.10,0);
+  tone(1975.5,.28,'sine',.03,0);
+  tone(659.25,.62,'triangle',.09,.24);
+  tone(1318.5,.3,'sine',.026,.24);
+}
+function chime(){
+  tone(783.99,.85,'sine',.07,0);
+  tone(659.25,.85,'sine',.06,.15);
+  tone(523.25,1,'sine',.055,.3);
+}
+function relay(){ noise(.05,.045,1700); tone(240,.05,'square',.028,0); }
+function buzz(){ tone(150,.28,'square',.06,0); noise(.18,.04,320); }
+function sweepDown(){ tone(520,.3,'sine',.05,0); tone(300,.34,'sine',.045,.12); noise(.2,.03,600); }
+function speak(text){
+  if(!S.settings.sound || !S.settings.announcer) return;
+  chime();
+  try{
+    const s = window.speechSynthesis;
+    if(!s){
+      if(!speechWarned){ speechWarned = true; term('Синтез речи недоступен — только звонок и куранты.','warn'); }
+      return;
+    }
+    if(s.speaking || s.pending) s.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'ru-RU'; u.rate = 1.04;
+    const v = s.getVoices().find(v=>/^ru/i.test(v.lang));
+    if(v) u.voice = v;
+    s.speak(u);
+  }catch(e){}
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   7. ТЕРМИНАЛ И УВЕДОМЛЕНИЯ
+   ═══════════════════════════════════════════════════════════════════════ */
+const termOut = $('termOut');
+function term(msg, kind){
+  const el = document.createElement('div');
+  el.className = 'ln ' + (kind||'info');
+  el.innerHTML = '<span class="t">' + fmt(S.sim.sec/60) + '</span><span class="m">' + esc(msg) + '</span>';
+  termOut.appendChild(el);
+  while(termOut.children.length > 400) termOut.firstChild.remove();
+  termOut.scrollTop = termOut.scrollHeight;
+}
+function termEcho(text){
+  const el = document.createElement('div');
+  el.className = 'ln echo';
+  el.innerHTML = '<span class="t">' + fmt(S.sim.sec/60) + '</span><span class="m"><b>' + esc(shortPrompt()) + '</b> ' + esc(text) + '</span>';
+  termOut.appendChild(el);
+  while(termOut.children.length > 400) termOut.firstChild.remove();
+  termOut.scrollTop = termOut.scrollHeight;
+}
+function toast(msg, kind, withUndo){
+  const box = $('toasts');
+  const el = document.createElement('div');
+  el.className = 'toast ' + (kind||'info');
+  el.innerHTML = '<span class="msg">' + esc(msg) + '</span>' +
+    (withUndo ? '<button class="undo">Отменить</button>' : '') +
+    '<button class="x"><svg class="ic"><use href="#i-x"/></svg></button>';
+  const kill = ()=>{ el.classList.add('out'); setTimeout(()=>el.remove(),260); };
+  el.querySelector('.x').onclick = kill;
+  if(withUndo) el.querySelector('.undo').onclick = ()=>{ undo(); kill(); };
+  box.appendChild(el);
+  while(box.children.length > 4) box.firstChild.remove();
+  setTimeout(kill, withUndo ? 8500 : 5000);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   8. МАТРИЧНЫЙ РЕНДЕР
+   ═══════════════════════════════════════════════════════════════════════ */
+const bc = $('boardCanvas'), tc = $('tickerCanvas');
+const bx = bc.getContext('2d'), tx = tc.getContext('2d');
+const buf = document.createElement('canvas'), bfx = buf.getContext('2d');
+const PAD = 6;
+let P = 3, sprites = {}, pattern = null, patternP = 0;
+let boardDirty = true, lastBlink = -1, pageCount = 1, lastPage = -1;
+let tickerOff = 0, tickerW = 0;
+const DPR = Math.min(window.devicePixelRatio || 1, 2);
+
+function dims(){
+  const s = S.view.size;
+  if(s === 's') return {W:216, H:192, N:7};
+  if(s === 'l') return {W:480, H:212, N:14};
+  return {W:408, H:146, N:8};
+}
+function capacity(){
+  const d = dims();
+  return S.view.rows > 0 ? Math.min(S.view.rows, d.N) : d.N;
+}
+function mixWhite(hex,a){
+  const n = parseInt(hex.slice(1),16), r=n>>16&255, g=n>>8&255, b=n&255;
+  return 'rgb('+Math.round(r+(255-r)*a)+','+Math.round(g+(255-g)*a)+','+Math.round(b+(255-b)*a)+')';
+}
+function sprite(color,m){
+  const k = color+'_'+m+'_'+P;
+  let s = sprites[k];
+  if(s) return s;
+  const size = Math.max(2, P*m);
+  s = document.createElement('canvas');
+  s.width = s.height = size;
+  const c = s.getContext('2d'), r = size*.42, cx = size/2;
+  const g = c.createRadialGradient(cx,cx,0,cx,cx,r*1.3);
+  g.addColorStop(0, mixWhite(color,.55));
+  g.addColorStop(.4, color);
+  g.addColorStop(.82, color);
+  g.addColorStop(1,'rgba(0,0,0,0)');
+  c.fillStyle = g;
+  c.fillRect(0,0,size,size);
+  sprites[k] = s;
+  return s;
+}
+function unlit(ctx){
+  if(pattern && patternP === P) return pattern;
+  const c = document.createElement('canvas');
+  c.width = c.height = P;
+  const x = c.getContext('2d');
+  x.fillStyle = 'rgba(255,182,61,0.05)';
+  x.beginPath(); x.arc(P/2,P/2,P*.3,0,7); x.fill();
+  pattern = ctx.createPattern(c,'repeat');
+  patternP = P;
+  return pattern;
+}
+function text(ctx,t,dx,dy,color,m){
+  const sp = sprite(color,m);
+  t = String(t);
+  for(let i=0;i<t.length;i++){
+    if(t[i] === ' ') continue;
+    const g = glyphOf(t[i]);
+    for(let r=0;r<7;r++){
+      const row = g[r];
+      if(!row) continue;
+      for(let c=0;c<5;c++){
+        if(row & (16>>c)) ctx.drawImage(sp,(dx+(i*6+c)*m)*P,(dy+r*m)*P);
+      }
+    }
+  }
+}
+const tw = (t,m) => t.length*6*m - m;
+const cut = (t,w) => { t = String(t); return t.length <= w ? t : t.slice(0,Math.max(0,w-1))+'…'; };
+function columns(){
+  const large = S.view.size === 'l';
+  if(S.view.timeOnly){
+    return [['num',8,'РЕЙС'],['arr',7,'ПРИБ.'],['dep',7,'ОТПР.'],['plat',6,'ПЛАТФ']];
+  }
+  return [
+    ['num',6,'РЕЙС'],
+    ['type',5,'ТИП'],
+    ['route',large?30:20,'МАРШРУТ'],
+    ['sek',3,'СЕК'],
+    ['arr',5,'ПРИБ.'],
+    ['dep',5,'ОТПР.'],
+    ['plat',5,'ПЛАТФ'],
+    ['status',large?12:10,'СТАТУС']
+  ];
+}
+function colPos(W){
+  const cols = columns();
+  const inner = cols.reduce((a,c)=>a+c[1]*6,0) + (cols.length-1)*6;
+  let x = PAD + Math.max(0, Math.floor((W - 2*PAD - inner)/2));
+  return cols.map(c=>{
+    const o = {key:c[0], w:c[1], head:c[2], x};
+    x += c[1]*6 + 6;
+    return o;
+  });
+}
+function cellsOf(t, now){
+  const cls = classify(t.num);
+  const st = statusOf(t, now);
+  const timeColor = t.off ? '#ff5d6a' : '#ffcf6e';
+  const route = (t.from ? t.from + ' — ' : '') + t.to;
+  return {
+    st,
+    num:{t:t.num, c:'#ffd88a'},
+    type:{t:cls.emb + cls.code, c:cls.color},
+    route:{t:route.toUpperCase(), c:t.off ? '#a34450' : '#ffb63d', strike:t.off},
+    sek:{t:t.sek || '—', c:'#9fb2c4'},
+    arr:{t:t.off ? '--:--' : (st.a != null ? fmt(st.a) : '—'), c:timeColor},
+    dep:{t:t.off ? '--:--' : (st.d != null ? fmt(st.d) : '—'), c:timeColor},
+    plat:{t:t.plat || '—', c:'#f2f6fa'},
+    status:{t:(t.hold && st.past && !t.off) ? 'УШЁЛ' : st.label, c:(t.hold && st.past && !t.off) ? '#7c8b9c' : st.color, blink:st.blink}
+  };
+}
+function smallRow(ctx,C,y,timeOnly,blink){
+  const timeCell = C.dep.t !== '—' ? C.dep : C.arr;
+  if(timeOnly){
+    text(ctx, cut(C.num.t,4), 6, y, '#ffd88a', 2);
+    text(ctx, timeCell.t, 66, y, timeCell.c, 2);
+    text(ctx, C.plat.t, 150, y, '#f2f6fa', 2);
+    return;
+  }
+  text(ctx, cut(C.num.t,4), 6, y+1, '#ffd88a', 1);
+  text(ctx, C.type.t, 6, y+10, C.type.c, 1);
+  const rt = cut(C.route.t,13);
+  text(ctx, rt, 36, y+1, C.route.c, 1);
+  if(C.route.strike){
+    const s = sprite('#ff4d5e',1);
+    const w = Math.min(tw(rt,1),78);
+    for(let i=0;i<w;i++) ctx.drawImage(s,(36+i)*P,(y+4)*P);
+  }
+  if(!(C.status.blink && !blink)) text(ctx, cut(C.status.t,13), 36, y+10, C.status.c, 1);
+  text(ctx, timeCell.t, 120, y, timeCell.c, 2);
+  text(ctx, C.plat.t, 186, y, '#f2f6fa', 2);
+}
+let seen = {};
+function renderBoard(ts){
+  const d = dims(), W = d.W, H = d.H, small = S.view.size === 's';
+  const N = capacity();
+  const now = S.sim.sec/60;
+  const all = boardTrips();
+  pageCount = Math.max(1, Math.ceil(all.length / N));
+  const pageMs = Math.max(3, S.view.pageSec)*1000;
+  const page = pageCount > 1 ? Math.floor(ts/pageMs) % pageCount : 0;
+  const rows = all.slice(page*N, page*N+N);
+
+  P = Math.max(2, Math.round(3*S.view.scale*DPR));
+  if(W*P > 4096) P = Math.floor(4096/W);
+  if(bc.width !== W*P || bc.height !== H*P){
+    bc.width = W*P; bc.height = H*P;
+    buf.width = bc.width; buf.height = bc.height;
+    sprites = {}; pattern = null;
+  }
+  bc.style.width = (W*3*S.view.scale)+'px';
+  bc.style.height = (H*3*S.view.scale)+'px';
+
+  const blink = Math.floor(ts/560)%2 === 0;
+  const ctx = bfx;
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.fillStyle = '#080604';
+  ctx.fillRect(0,0,buf.width,buf.height);
+  ctx.fillStyle = unlit(ctx);
+  ctx.fillRect(0,0,buf.width,buf.height);
+
+  const title = small ? stationLabel() : ('АВТОВОКЗАЛ ' + stationLabel());
+  const line2 = 'ГОРОД · ПРИГОРОД · МЕЖГОРОД · МЕЖДУНАРОДНЫЕ ЛИНИИ';
+  $('plateTag').textContent = 'АВТОВОКЗАЛ ' + stationLabel() + ' · МАТРИЧНОЕ ТАБЛО · А-' + (small?'П':S.view.size==='l'?'В':'М');
+  const cm = small?2:3, ty = small?2:3, ly = small?18:20, hy = small?26:32, sy = small?35:41;
+  const y0 = small?38:44, rh = small?20:11;
+  const cs = fmt(now), cx = W - PAD - tw(cs,cm);
+  text(ctx, blink ? cs : cs.replace(':',' '), cx, ty, '#ffc23d', cm);
+  text(ctx, cut(title, Math.max(4,Math.floor((cx-14-PAD)/12))), PAD, ty, '#ffcf6e', 2);
+  text(ctx, cut(line2, Math.floor((W-2*PAD)/6)), PAD, ly, '#8a6a2f', 1);
+  const sep = sprite('#33270f',1);
+  for(let x=PAD;x<W-PAD;x+=2) ctx.drawImage(sep, x*P, sy*P);
+
+  if(small){
+    text(ctx,'РЕЙС',6,hy,'#a97f2c',1);
+    if(!S.view.timeOnly){
+      text(ctx,'МАРШРУТ',36,hy,'#a97f2c',1);
+      text(ctx,'ОТПР.',120,hy,'#a97f2c',1);
+      text(ctx,'ПЛАТФ',180,hy,'#a97f2c',1);
+    }else{
+      text(ctx,'ОТПР.',66,hy,'#a97f2c',1);
+      text(ctx,'ПЛАТФ',146,hy,'#a97f2c',1);
+    }
+    if(!rows.length){
+      const m1 = 'ТАБЛО ПУСТО';
+      text(ctx,m1,Math.floor((W-tw(m1,1))/2),y0+52,'#8a6a2f',1);
+      const m2 = 'ВВЕДИТЕ КОМАНДУ НИЖЕ';
+      text(ctx,m2,Math.floor((W-tw(m2,1))/2),y0+64,'#57431c',1);
+      const m3 = 'АВТОБУС 301 МИНСК — ГОМЕЛЬ';
+      text(ctx,m3,Math.floor((W-tw(m3,1))/2),y0+76,'#57431c',1);
+    }
+    rows.forEach((t,i)=>smallRow(ctx, cellsOf(t,now), y0+i*rh, S.view.timeOnly, blink));
+  }else{
+    const cols = colPos(W);
+    cols.forEach(c=>text(ctx, cut(c.head,c.w), c.x, hy, '#a97f2c', 1));
+    if(!rows.length){
+      const mid = y0 + Math.floor(N*rh/2);
+      const m1 = 'ТАБЛО ПУСТО · ВВЕДИТЕ КОМАНДУ В СТРОКЕ НИЖЕ';
+      text(ctx,m1,Math.floor((W-tw(m1,1))/2),mid-12,'#8a6a2f',1);
+      const m2 = 'АВТОБУС 301 МИНСК — ГОМЕЛЬ ПРИБ 08:41 ОТПР 08:47 ПЛАТФОРМА 3';
+      const m2c = cut(m2, Math.floor((W-2*PAD)/6));
+      text(ctx,m2c,Math.floor((W-tw(m2c,1))/2),mid,'#6b551f',1);
+      const m3 = 'УДАЛЕНИЕ: ТА ЖЕ КОМАНДА + УДАЛИТЬ В КОНЦЕ';
+      const m3c = cut(m3, Math.floor((W-2*PAD)/6));
+      text(ctx,m3c,Math.floor((W-tw(m3c,1))/2),mid+12,'#57431c',1);
+    }
+    rows.forEach((t,i)=>{
+      const y = y0 + i*rh;
+      const C = cellsOf(t, now);
+      cols.forEach(c=>{
+        const cell = C[c.key];
+        if(!cell) return;
+        if(cell.blink && !blink) return;
+        const s = cut(cell.t, c.w);
+        text(ctx, s, c.x, y, cell.c, 1);
+        if(cell.strike){
+          const sp = sprite('#ff4d5e',1);
+          const w = Math.min(tw(s,1), c.w*6);
+          for(let k=0;k<w;k++) ctx.drawImage(sp,(c.x+k)*P,(y+3)*P);
+        }
+      });
+    });
+  }
+
+  const fy = y0 + N*rh + 3;
+  const brand = small ? 'АВТОВОКЗАЛ' : ('АВТОВОКЗАЛ ' + stationLabel());
+  const hidden = Math.max(0, all.length - N);
+  const right = (pageCount>1 ? 'СТР. '+(page+1)+'/'+pageCount+' · ' : '') +
+                (hidden>0 && pageCount===1 ? '+'+hidden+' НЕ ПОМЕЩ. · ' : '') +
+                (S.sim.paused ? 'ПАУЗА' : all.length+' РЕЙС.');
+  const rx = W - PAD - tw(right,1);
+  text(ctx, cut(brand, Math.floor((rx-12-PAD)/6)), PAD, fy, '#6b551f', 1);
+  text(ctx, right, rx, fy, '#6b551f', 1);
+
+  bx.setTransform(1,0,0,1,0,0);
+  bx.globalCompositeOperation = 'source-over';
+  bx.globalAlpha = 1;
+  try{ bx.filter = 'none'; }catch(e){}
+  bx.clearRect(0,0,bc.width,bc.height);
+  bx.drawImage(buf,0,0);
+  if('filter' in bx){
+    try{
+      bx.filter = 'blur('+Math.max(2,P*1.5)+'px)';
+      bx.globalCompositeOperation = 'lighter';
+      bx.globalAlpha = S.view.gloss ? .5 : .2;
+      bx.drawImage(buf,0,0);
+      bx.filter = 'none';
+      bx.globalAlpha = 1;
+      bx.globalCompositeOperation = 'source-over';
+    }catch(e){}
+  }
+}
+function renderTicker(dt){
+  const t = '\uE001 \uE001  ' + (S.settings.ticker||'') + '  ';
+  tickerW = tw(t,1)+40;
+  const W = dims().W, w = W*P, h = 11*P;
+  if(tc.width !== w || tc.height !== h){ tc.width = w; tc.height = h; }
+  tc.style.width = (W*3*S.view.scale)+'px';
+  tc.style.height = (11*3*S.view.scale)+'px';
+  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if(!reduce && !S.sim.paused) tickerOff = (tickerOff + dt*26) % tickerW;
+  tx.setTransform(1,0,0,1,0,0);
+  tx.fillStyle = '#080604';
+  tx.fillRect(0,0,w,h);
+  tx.fillStyle = unlit(tx);
+  tx.fillRect(0,0,w,h);
+  for(let i=0;i<t.length;i++){
+    let x = (i*6 - tickerOff) % tickerW;
+    if(x < -6) x += tickerW;
+    if(x > W) continue;
+    text(tx, t[i], Math.round(x), 2, '#e8a52f', 1);
+  }
+}
+function flicker(){
+  const b = $('bezel');
+  b.classList.remove('refresh');
+  void b.offsetWidth;
+  b.classList.add('refresh');
+}
+function fitBoard(){
+  if(document.body.classList.contains('fs') || !S.view.fit) return;
+  const d = dims();
+  const avail = $('boardScroll').clientWidth - 4;
+  const availH = Math.max(300, window.innerHeight*.60);
+  if(avail > 50){
+    S.view.scale = clamp(Math.min(avail/(d.W*3), availH/(d.H*3)), .45, 1.65);
+    renderScale();
+  }
+}
+function renderScale(){
+  $('scale').value = Math.round(S.view.scale*100);
+  $('scaleV').textContent = Math.round(S.view.scale*100)+'%';
+  boardDirty = true;
+}
+let fsBackup = null;
+function toggleFS(){
+  const root = $('fsRoot');
+  if(document.body.classList.contains('fs')){
+    document.body.classList.remove('fs');
+    if(document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(()=>{});
+    if(fsBackup != null){ S.view.scale = fsBackup; fsBackup = null; }
+    renderScale(); fitBoard();
+  }else{
+    fsBackup = S.view.scale;
+    document.body.classList.add('fs');
+    if(root.requestFullscreen) root.requestFullscreen().catch(()=>{});
+    const d = dims();
+    S.view.scale = clamp(Math.min((window.innerWidth-46)/(d.W*3),(window.innerHeight-88)/(d.H*3)),.3,3);
+    renderScale();
+  }
+}
+document.addEventListener('fullscreenchange',()=>{
+  if(!document.fullscreenElement && document.body.classList.contains('fs')) toggleFS();
+});
+
+/* ═══════════════════════════════════════════════════════════════════════
+   9. ВРЕМЯ, ЗВОНОК, ОБЪЯВЛЕНИЯ
+   ═══════════════════════════════════════════════════════════════════════ */
+let lastMinute = Math.floor(S.sim.sec/60);
+let prevStatus = {}, statusReady = false;
+function refreshStatuses(silent){
+  const now = S.sim.sec/60;
+  const visible = new Set(boardTrips().map(t=>t.id));
+  S.trips.forEach(t=>{
+    const st = statusOf(t, now);
+    const old = prevStatus[t.id];
+    if(!silent && statusReady && old && old !== st.k && visible.has(t.id)){
+      const route = (t.from ? t.from+' — ' : '') + t.to;
+      if(st.k === 'board'){
+        speak('Автобус номер '+t.num+', сообщением '+route+'. Посадка на платформу '+t.plat+'.');
+        term('Объявление: посадка на рейс №'+t.num+', платформа '+t.plat+'.','info');
+      }else if(st.k === 'dep'){
+        speak('Автобус номер '+t.num+' отправляется с платформы '+t.plat+'.');
+        term('Рейс №'+t.num+' отправлен с платформы '+t.plat+'.','ok');
+      }else if(st.k === 'arrived'){
+        speak('Автобус номер '+t.num+', сообщением '+route+', прибыл на платформу '+t.plat+'.');
+        term('Рейс №'+t.num+' прибыл на платформу '+t.plat+'.','ok');
+      }else if(st.k === 'gone'){
+        term('Рейс №'+t.num+' ушёл — строка снята с табло.','dim');
+      }
+    }
+    prevStatus[t.id] = st.k;
+    if(visible.has(t.id) && !seen[t.id]){
+      seen[t.id] = true;
+      if(!silent && statusReady){
+        stationBell();
+        flicker();
+        term('Звонок: на табло выведен рейс №'+t.num+' ('+classify(t.num).code+') · '+
+          (t.arr!=null?'приб '+fmt(t.arr):'приб —')+' · '+(t.dep!=null?'отпр '+fmt(t.dep):'отпр —')+
+          ' · платформа '+t.plat,'bell');
+      }
+    }
+    if(!visible.has(t.id)) delete seen[t.id];
+  });
+  statusReady = true;
+}
+function minuteTick(){
+  if(S.sim.sec >= 86400){
+    S.sim.sec -= 86400;
+    S.sim.day++;
+    S.trips.forEach(t=>t.hold=false);
+    prevStatus = {}; statusReady = false; seen = {};
+    term('Новые сутки ('+S.sim.day+'). Табло возобновлено.','ok');
+  }
+  refreshStatuses(false);
+  lastMinute = Math.floor(S.sim.sec/60);
+  boardDirty = true;
+  renderClock();
+  renderSr();
+  save();
+}
+setInterval(()=>{
+  if(S.sim.paused || document.hidden) return;
+  S.sim.sec += (S.sim.speed||1)*.25;
+  if(Math.floor(S.sim.sec/60) !== lastMinute) minuteTick();
+  else renderClock();
+},250);
+function jump(sec,label){
+  S.sim.sec = Math.max(0, S.sim.sec + sec);
+  if(Math.floor(S.sim.sec/60) !== lastMinute) minuteTick();
+  else { boardDirty = true; renderClock(); }
+  if(label) term(label,'info');
+  flicker();
+  save();
+}
+function setTime(min, silent){
+  S.sim.sec = clamp(min,0,1439)*60;
+  lastMinute = Math.floor(S.sim.sec/60);
+  prevStatus = {}; statusReady = false; seen = {};
+  refreshStatuses(true);
+  boardDirty = true;
+  renderClock();
+  renderSr();
+  if(!silent) term('Время табло установлено: '+fmt(min)+'.','ok');
+  flicker();
+  save();
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   10. РАЗБОР КОМАНДЫ РЕЙСА
+   ═══════════════════════════════════════════════════════════════════════ */
+const DEL_RE = /(?:^|\s)(удалить|удал|убрать|del|rm)\s*$/i;
+function isDelete(args){ return DEL_RE.test(String(args||'').trim()); }
+function stripDelete(args){ return String(args||'').replace(DEL_RE,'').trim(); }
+
+function parseBus(args){
+  let s = ' ' + String(args||'').replace(/\s+/g,' ').trim() + ' ';
+  const out = {num:null, from:null, to:null, arr:null, dep:null, plat:null, sek:null, parts:[], errors:[]};
+  let m;
+  m = /(?:приб|прибытие|arr)\s+(\d{1,2}[:.]\d{2})/i.exec(s);
+  if(m){ out.arr = parseT(m[1].replace('.',':')); s = s.replace(m[0],' '); }
+  m = /(?:отпр|отправление|dep)\s+(\d{1,2}[:.]\d{2})/i.exec(s);
+  if(m){ out.dep = parseT(m[1].replace('.',':')); s = s.replace(m[0],' '); }
+  m = /(?:платформа|платф|плат|пл|platform)\s+№?\s*(\d{1,2}[а-яa-z]?)/i.exec(s);
+  if(m){ out.plat = m[1].toUpperCase(); s = s.replace(m[0],' '); }
+  m = /(?:сектор|сек|sector)\s+([а-яa-z0-9]{1,3})/i.exec(s);
+  if(m){ out.sek = m[1].toUpperCase(); s = s.replace(m[0],' '); }
+  const toks = s.trim().split(' ').filter(Boolean);
+  const ni = toks.findIndex(t=>/^\d{1,4}[а-яa-z]?$/i.test(t));
+  if(ni >= 0){ out.num = toks[ni].toUpperCase(); toks.splice(ni,1); }
+  let route = toks.join(' ')
+    .replace(/\s*(—|–|->|→)\s*/g,' — ')
+    .replace(/\s+-\s+/g,' — ')
+    .replace(/^[\s—-]+|[\s—-]+$/g,'').trim();
+  if(route){
+    out.parts = route.split(' — ').map(x=>x.trim()).filter(Boolean);
+    if(out.parts.length >= 2){ out.from = out.parts[0]; out.to = out.parts[1]; }
+    else{
+      const one = out.parts[0];
+      if(out.arr != null && out.dep == null){ out.from = one; out.to = stationLabel(); }
+      else { out.from = stationLabel(); out.to = one; }
+    }
+  }
+  if(!out.num) out.errors.push('номер рейса');
+  if(!out.to) out.errors.push('маршрут (откуда — куда)');
+  if(out.arr == null && out.dep == null) out.errors.push('время прибытия или отправления');
+  out.ok = out.errors.length === 0;
+  return out;
+}
+function matchTrips(p){
+  return S.trips.filter(t=>{
+    if(p.num && norm(t.num) !== norm(p.num)) return false;
+    if(p.parts.length >= 2){
+      if(norm(t.from) !== norm(p.parts[0])) return false;
+      if(norm(t.to) !== norm(p.parts[1])) return false;
+    }else if(p.parts.length === 1){
+      const q = norm(p.parts[0]);
+      if(norm(t.from) !== q && norm(t.to) !== q) return false;
+    }
+    if(p.arr != null && t.arr !== p.arr) return false;
+    if(p.dep != null && t.dep !== p.dep) return false;
+    if(p.plat && norm(t.plat) !== norm(p.plat)) return false;
+    if(p.sek && norm(t.sek) !== norm(p.sek)) return false;
+    return true;
+  });
+}
+function findTrip(num){
+  return S.trips.find(t=>norm(t.num) === norm(num)) || null;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   11. КОМАНДЫ
+   ═══════════════════════════════════════════════════════════════════════ */
+const COMMANDS = [
+  {name:'автобус',   alias:['a','bus','рейс','add'], args:'<№> <откуда> — <куда> [приб ЧЧ:ММ] [отпр ЧЧ:ММ] [платформа N] [сектор X]', desc:'Вывести рейс на табло. Главная команда.'},
+  {name:'автобус…удалить', alias:[], args:'та же команда + удалить в конце', desc:'Удалить рейс с табло. Можно короче: автобус 301 удалить'},
+  {name:'удалить',   alias:['del','rm'],        args:'<№>', desc:'Убрать рейс по номеру.'},
+  {name:'задержка',  alias:['delay'],           args:'<№> <минут>', desc:'Опоздание рейса.'},
+  {name:'платформа', alias:['plat','платф'],    args:'<№> <платформа>', desc:'Изменить платформу.'},
+  {name:'сектор',    alias:['sek'],             args:'<№> <сектор>', desc:'Сектор посадки.'},
+  {name:'отмена',    alias:['cancel'],          args:'<№>', desc:'Отменить рейс.'},
+  {name:'вернуть',   alias:['restore'],         args:'<№>', desc:'Вернуть отменённый или ушедший рейс.'},
+  {name:'список',    alias:['ls','list'],       args:'', desc:'Показать всё содержимое табло.'},
+  {name:'название',  alias:['name'],            args:'<текст>', desc:'Название автовокзала на табло.'},
+  {name:'время',     alias:['time'],            args:'ЧЧ:ММ', desc:'Установить время табло.'},
+  {name:'пауза',     alias:['pause'],           args:'', desc:'Остановить ход времени.'},
+  {name:'ход',       alias:['play'],            args:'', desc:'Запустить ход времени.'},
+  {name:'скорость',  alias:['speed'],           args:'1 | 10 | 40', desc:'1с=1с, 1мин=6с, 1мин=1.5с.'},
+  {name:'размер',    alias:['size'],            args:'малое | среднее | большое', desc:'Тип матричного табло.'},
+  {name:'окно',      alias:['window'],          args:'<минут>', desc:'За сколько минут выводить рейс.'},
+  {name:'строка',    alias:['ticker'],          args:'<текст>', desc:'Бегущая строка.'},
+  {name:'глянец',    alias:['gloss'],           args:'вкл | выкл', desc:'Стекло матрицы.'},
+  {name:'режим',     alias:['mode'],            args:'полное | время', desc:'Все колонки или только время.'},
+  {name:'диктор',    alias:['ann'],             args:'вкл | выкл | проверка', desc:'Речевые объявления.'},
+  {name:'звонок',    alias:['bell'],            args:'', desc:'Проверка звонка автовокзала.'},
+  {name:'экспорт',   alias:['export'],          args:'json | csv', desc:'Скачать содержимое табло.'},
+  {name:'импорт',    alias:['import'],          args:'', desc:'Выбрать файл .json / .csv для загрузки.'},
+  {name:'очистить',  alias:['clear'],           args:'табло | вывод', desc:'Убрать все рейсы или очистить терминал.'},
+  {name:'отменить',  alias:['undo'],            args:'', desc:'Отменить последнее удаление.'},
+  {name:'помощь',    alias:['help','?'],        args:'', desc:'Список команд и нумерация.'}
+];
+function resolveCommand(w){
+  w = String(w||'').toLowerCase();
+  if(w === 'автобус…удалить') return COMMANDS[0];
+  return COMMANDS.find(c=>c.name===w || c.alias.indexOf(w)>=0) || null;
+}
+const CITIES = ['Минск','Гомель','Брест','Витебск','Гродно','Могилёв','Барановичи','Орша','Борисов',
+  'Жодино','Молодечно','Слуцк','Солигорск','Бобруйск','Пинск','Полоцк','Лида','Жлобин','Речица',
+  'Калинковичи','Лунинец','Кобрин','Столбцы','Несвиж','Марьина Горка','Осиповичи','Сморгонь','Заславль'];
+
+function execute(raw){
+  const line = String(raw||'').trim();
+  if(!line) return;
+  termEcho(line);
+  history.unshift(line);
+  if(history.length > 80) history.pop();
+  histIdx = -1;
+  const sp = line.indexOf(' ');
+  const word = sp < 0 ? line : line.slice(0,sp);
+  const args = sp < 0 ? '' : line.slice(sp+1).trim();
+  const cmd = resolveCommand(word);
+  if(!cmd){
+    const near = COMMANDS.filter(c=>c.name.startsWith(word.toLowerCase().slice(0,3))).map(c=>c.name);
+    buzz();
+    term('Неизвестная команда «'+word+'».'+(near.length?' Возможно: '+near.join(', '):' Введите «помощь».'),'err');
+    return;
+  }
+  try{
+    switch(cmd.name){
+      case 'помощь': printHelp(); break;
+      case 'автобус': cmdBus(args); break;
+      case 'удалить': deleteByCommand(args); break;
+      case 'задержка': {
+        const m = /^(\S+)\s+\+?(-?\d{1,3})$/.exec(args.trim());
+        if(!m){ buzz(); term('Синтаксис: задержка 301 7','err'); break; }
+        const t = findTrip(m[1]);
+        if(!t){ buzz(); term('Рейс '+m[1]+' не найден.','err'); break; }
+        t.delay = clamp(+m[2],0,999);
+        relay(); boardDirty = true; save();
+        term('№'+t.num+': опоздание +'+t.delay+' мин.','warn');
+        if(t.delay>0) speak('Автобус номер '+t.num+' задерживается на '+t.delay+' минут.');
+        break;
+      }
+      case 'платформа': {
+        const m = /^(\S+)\s+(\S+)$/.exec(args.trim());
+        if(!m){ buzz(); term('Синтаксис: платформа 301 3','err'); break; }
+        const t = findTrip(m[1]);
+        if(!t){ buzz(); term('Рейс '+m[1]+' не найден.','err'); break; }
+        t.plat = m[2].toUpperCase();
+        relay(); boardDirty = true; flicker(); save();
+        term('№'+t.num+': платформа '+t.plat+'.','ok');
+        break;
+      }
+      case 'сектор': {
+        const m = /^(\S+)\s+(\S+)$/.exec(args.trim());
+        if(!m){ buzz(); term('Синтаксис: сектор 301 Б','err'); break; }
+        const t = findTrip(m[1]);
+        if(!t){ buzz(); term('Рейс '+m[1]+' не найден.','err'); break; }
+        t.sek = m[2].toUpperCase().slice(0,3);
+        relay(); boardDirty = true; save();
+        term('№'+t.num+': сектор '+t.sek+'.','ok');
+        break;
+      }
+      case 'отмена': case 'вернуть': {
+        const t = findTrip(args.trim().split(/\s+/)[0]);
+        if(!t){ buzz(); term('Рейс '+args+' не найден.','err'); break; }
+        if(cmd.name==='отмена'){ t.off = true; t.hold = false; term('№'+t.num+' ОТМЕНЕН.','warn'); }
+        else { t.off = false; t.hold = true; term('№'+t.num+' возвращён на табло.','ok'); }
+        relay(); boardDirty = true; flicker(); renderSr(); save();
+        break;
+      }
+      case 'список': printList(); break;
+      case 'название': {
+        const v = args.trim();
+        if(!v){ buzz(); term('Укажите название автовокзала.','err'); break; }
+        S.name = v.toUpperCase().slice(0,26);
+        $('stationName').value = S.name;
+        renderClock(); boardDirty = true; flicker(); save();
+        term('Название автовокзала: '+S.name+'.','ok');
+        break;
+      }
+      case 'время': {
+        const v = parseT(args.trim());
+        if(v == null){ buzz(); term('Синтаксис: время 08:45','err'); break; }
+        setTime(v);
+        break;
+      }
+      case 'пауза': S.sim.paused = true; renderClock(); boardDirty = true; term('Время остановлено.','warn'); save(); break;
+      case 'ход': S.sim.paused = false; renderClock(); boardDirty = true; term('Время запущено.','ok'); save(); break;
+      case 'скорость': {
+        const v = parseInt(args,10);
+        if([1,10,40].indexOf(v)<0){ buzz(); term('Скорости: 1, 10, 40.','err'); break; }
+        S.sim.speed = v; renderClock(); save();
+        term('Скорость: '+(v===1?'1 сек = 1 сек':v===10?'1 мин = 6 сек':'1 мин = 1.5 сек')+'.','ok');
+        break;
+      }
+      case 'размер': {
+        const map = {'малое':'s','маленькое':'s','s':'s','среднее':'m','m':'m','большое':'l','l':'l'};
+        const v = map[args.trim().toLowerCase()];
+        if(!v){ buzz(); term('Размеры: малое | среднее | большое.','err'); break; }
+        S.view.size = v; renderRail(); boardDirty = true; fitBoard(); flicker(); save();
+        term('Тип табло: '+args.trim()+'.','ok');
+        break;
+      }
+      case 'окно': {
+        const v = parseInt(args,10);
+        if(isNaN(v) || v<5 || v>1440){ buzz(); term('Окно: от 5 до 1440 минут.','err'); break; }
+        S.view.window = v; seen = {}; renderRail(); boardDirty = true; flicker(); save();
+        term('Рейсы выводятся за '+v+' мин до прибытия/отправления.','ok');
+        break;
+      }
+      case 'строка':
+        if(!args){ buzz(); term('Укажите текст бегущей строки.','err'); break; }
+        S.settings.ticker = args; tickerOff = 0; save();
+        term('Бегущая строка обновлена ('+args.length+' симв.).','ok');
+        break;
+      case 'глянец': {
+        const a = args.trim().toLowerCase();
+        if(a==='выкл') S.view.gloss=false; else if(a==='вкл') S.view.gloss=true; else S.view.gloss=!S.view.gloss;
+        renderRail(); boardDirty=true; save();
+        term('Глянец: '+(S.view.gloss?'включён':'выключен')+'.','ok');
+        break;
+      }
+      case 'режим': {
+        const a = args.trim().toLowerCase();
+        if(a==='время'){ S.view.timeOnly=true; } else if(a==='полное'){ S.view.timeOnly=false; }
+        else { buzz(); term('Режим: полное | время','err'); break; }
+        renderRail(); boardDirty=true; fitBoard(); flicker(); save();
+        term('Режим табло: '+(S.view.timeOnly?'только время':'все колонки')+'.','ok');
+        break;
+      }
+      case 'диктор': {
+        const a = args.trim().toLowerCase();
+        if(a==='проверка'){
+          if(!S.settings.sound){ term('Звук выключен — включите его в верхней панели.','warn'); break; }
+          audio();
+          speak('Проверка связи. Автовокзал '+stationLabel()+'. Табло работает в штатном режиме.');
+          term('Проверка диктора выполнена.','ok');
+          break;
+        }
+        if(a==='вкл') S.settings.announcer=true;
+        else if(a==='выкл') S.settings.announcer=false;
+        else { buzz(); term('Диктор: вкл | выкл | проверка','err'); break; }
+        save();
+        term('Диктор '+(S.settings.announcer?'включён':'выключен')+'.','ok');
+        break;
+      }
+      case 'звонок': audio(); stationBell(); term('Звонок автовокзала проверен.','bell'); break;
+      case 'экспорт': doExport(/csv/i.test(args)?'csv':'json'); break;
+      case 'импорт': $('fileInput').click(); term('Выберите файл .json или .csv…','dim'); break;
+      case 'очистить': {
+        const a = args.trim().toLowerCase();
+        if(a==='вывод' || a==='терминал'){ termOut.innerHTML=''; welcome(); }
+        else if(a==='табло' || a===''){
+          if(!S.trips.length){ term('Табло уже пусто.','warn'); break; }
+          pushUndo('очистка табло ('+S.trips.length+')');
+          const n = S.trips.length;
+          S.trips = []; seen = {}; boardDirty = true; flicker(); renderSr(); save();
+          term('Табло очищено: убрано '+n+' рейс(ов). Отмена: «отменить».','warn');
+          toast('Табло очищено','danger',true);
+        }else{ buzz(); term('Уточните: очистить табло | очистить вывод','err'); }
+        break;
+      }
+      case 'отменить': undo(); break;
+    }
+  }catch(err){
+    buzz();
+    term('Ошибка выполнения: '+err.message,'err');
+  }
+}
+function cmdBus(args){
+  if(isDelete(args)){ deleteByCommand(stripDelete(args)); return; }
+  const p = parseBus(args);
+  if(!p.ok){
+    buzz();
+    term('Не хватает: '+p.errors.join(', ')+'.','err');
+    term('Синтаксис: автобус 301 Минск — Гомель приб 08:41 отпр 08:47 платформа 3','dim');
+    term('Только прибытие: автобус 302 Гомель — Минск приб 09:12 платформа 2','dim');
+    term('Только отправление: автобус 105 Минск — Заславль отпр 09:20 платформа 5','dim');
+    term('Удаление: та же команда + удалить в конце','dim');
+    return;
+  }
+  const cls = classify(p.num);
+  const same = S.trips.filter(t=>norm(t.num)===norm(p.num) && norm(t.from)===norm(p.from) && norm(t.to)===norm(p.to) &&
+    t.arr === p.arr && t.dep === p.dep);
+  const data = {
+    num:p.num, from:p.from||'', to:p.to, arr:p.arr, dep:p.dep,
+    plat:p.plat || '1', sek:p.sek || '—'
+  };
+  if(same.length){
+    const t = same[0];
+    pushUndo('изменение №'+t.num);
+    Object.assign(t, data);
+    t.hold = false;
+    relay(); boardDirty = true; flicker(); renderSr(); save();
+    term('Обновлено: №'+t.num+' · '+cls.name+' · '+(t.from?t.from+' — ':'')+t.to+
+      ' · приб '+(t.arr!=null?fmt(t.arr):'—')+' · отпр '+(t.dep!=null?fmt(t.dep):'—')+
+      ' · платформа '+t.plat+' · сектор '+t.sek,'ok');
+    return;
+  }
+  const t = Object.assign({id:uid(), delay:0, off:false, hold:false}, data);
+  S.trips.push(t);
+  relay(); boardDirty = true; flicker(); renderSr(); save();
+  term('На табло: №'+t.num+' · '+cls.name+' ('+cls.code+') · '+(t.from?t.from+' — ':'')+t.to+
+    ' · приб '+(t.arr!=null?fmt(t.arr):'—')+' · отпр '+(t.dep!=null?fmt(t.dep):'—')+
+    ' · платформа '+t.plat+' · сектор '+t.sek,'ok');
+  if(cls === OTHER) term('Номер '+t.num+' вне диапазонов классификации.','warn');
+  if(t.arr != null && t.dep == null) term('Отправление не задано — рейс только прибывает.','dim');
+  if(t.arr == null && t.dep != null) term('Прибытие не задано — рейс только отправляется.','dim');
+  const an = anchor(t);
+  if(an != null && an - S.sim.sec/60 > S.view.window){
+    term('Рейс появится на табло в '+fmt(an - S.view.window)+' (окно '+S.view.window+' мин).','dim');
+  }
+  term('Удалить: автобус '+t.num+' удалить','dim');
+}
+function deleteByCommand(clean){
+  const p = parseBus(clean);
+  if(!p.num && !p.parts.length){
+    buzz();
+    term('Для удаления укажите номер рейса. Пример: автобус 301 удалить','err');
+    term('Или полную команду: автобус 301 Минск — Гомель приб 08:41 отпр 08:47 удалить','dim');
+    return;
+  }
+  const matches = matchTrips(p);
+  if(!matches.length){
+    buzz();
+    const nums = [...new Set(S.trips.map(t=>t.num))].slice(0,12);
+    term('Рейс не найден по условию удаления'+(p.num?' (№'+p.num+')':'')+'.','err');
+    if(nums.length) term('На табло есть номера: '+nums.join(', '),'dim');
+    else term('Табло пусто — удалять нечего.','dim');
+    return;
+  }
+  pushUndo(matches.length>1 ? 'удаление '+matches.length+' рейсов' : 'удаление №'+matches[0].num);
+  const ids = new Set(matches.map(t=>t.id));
+  S.trips = S.trips.filter(t=>!ids.has(t.id));
+  matches.forEach(t=>{ delete seen[t.id]; delete prevStatus[t.id]; });
+  sweepDown();
+  boardDirty = true;
+  flicker();
+  renderSr();
+  save();
+  matches.forEach(t=>{
+    term('✕ УДАЛЁН с табло: №'+t.num+' · '+(t.from?t.from+' — ':'')+t.to+
+      ' · приб '+(t.arr!=null?fmt(t.arr):'—')+' · отпр '+(t.dep!=null?fmt(t.dep):'—')+
+      ' · платформа '+t.plat,'del');
+  });
+  if(matches.length>1) term('Удалено рейсов: '+matches.length+'. Отмена: команда «отменить».','warn');
+  else term('Отмена: команда «отменить» или Ctrl+Z.','dim');
+  toast(matches.length>1 ? 'Удалено рейсов: '+matches.length : 'Рейс №'+matches[0].num+' удалён','danger',true);
+}
+function padR(s,n){ s=String(s); return s.length>=n ? s.slice(0,n) : s+' '.repeat(n-s.length); }
+function printList(){
+  if(!S.trips.length){ term('Табло пусто. Введите: автобус 301 Минск — Гомель приб 08:41 отпр 08:47 платформа 3','warn'); return; }
+  const now = S.sim.sec/60;
+  term('СОДЕРЖИМОЕ ТАБЛО · АВТОВОКЗАЛ '+stationLabel()+' · '+S.trips.length+' РЕЙС(ОВ)','head');
+  term(padR('№',7)+padR('ТИП',5)+padR('ПРИБ',7)+padR('ОТПР',7)+padR('ПЛАТФ',7)+padR('СЕК',5)+padR('СТАТУС',12)+'МАРШРУТ','dim');
+  S.trips.slice().sort((a,b)=>(anchor(a)??0)-(anchor(b)??0)).forEach(t=>{
+    const st = statusOf(t,now);
+    const cls = classify(t.num);
+    term(padR(t.num,7)+padR(cls.code,5)+padR(st.a!=null?fmt(st.a):'—',7)+padR(st.d!=null?fmt(st.d):'—',7)+
+      padR(t.plat,7)+padR(t.sek||'—',5)+padR(st.label,12)+(t.from?t.from+' — ':'')+t.to, st.past?'dim':'info');
+  });
+}
+function printHelp(){
+  term('КОМАНДЫ ТАБЛО АВТОВОКЗАЛА','head');
+  COMMANDS.forEach(c=>term(padR(c.name,17)+padR(c.args,50)+c.desc,'info'));
+  term('НУМЕРАЦИЯ АВТОБУСНЫХ МАРШРУТОВ','head');
+  CLASSES.forEach(c=>term(padR(c.lo+'–'+c.hi,12)+padR(c.code,5)+c.name,'info'));
+  term('ПРИМЕРЫ','head');
+  term('автобус 12 Минск — Заславль отпр 07:15 платформа 1','dim');
+  term('автобус 301 Минск — Гомель приб 08:41 отпр 08:47 платформа 3 сектор Б','dim');
+  term('автобус 302 Гомель — Минск приб 09:12 платформа 2','dim');
+  term('автобус 801 Минск — Вильнюс приб 11:00 отпр 11:20 платформа 7','dim');
+  term('УДАЛЕНИЕ — та же команда, но со словом «удалить» в конце:','warn');
+  term('автобус 301 Минск — Гомель приб 08:41 отпр 08:47 платформа 3 удалить','del');
+  term('автобус 301 удалить','del');
+  term('Нет отправления — рейс только прибывает. Нет прибытия — только отправляется.','warn');
+}
+function doExport(kind){
+  const name = 'avtovokzal-'+stationLabel().toLowerCase().replace(/\s+/g,'-')+'-'+fmt(S.sim.sec/60).replace(':','-');
+  try{
+    let text, mime, ext;
+    if(kind === 'csv'){
+      const cell = v => { v=String(v??''); return /[;"\n]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v; };
+      const lines = ['номер;категория;откуда;куда;прибытие;отправление;платформа;сектор;опоздание;отменен'];
+      S.trips.forEach(t=>lines.push([t.num,classify(t.num).code,t.from,t.to,
+        t.arr!=null?fmt(t.arr):'', t.dep!=null?fmt(t.dep):'', t.plat, t.sek||'', t.delay, t.off?'да':'нет'].map(cell).join(';')));
+      text = '\uFEFF'+lines.join('\r\n'); mime='text/csv;charset=utf-8'; ext='csv';
+    }else{
+      text = JSON.stringify({app:'bus-terminal-board',v:1,state:S},null,1);
+      mime='application/json'; ext='json';
+    }
+    const blob = new Blob([text],{type:mime});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name+'.'+ext;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+    term('Экспорт '+ext.toUpperCase()+': '+S.trips.length+' рейс(ов).','ok');
+  }catch(e){ term('Скачивание недоступно в этом окружении.','warn'); }
+}
+function parseCSV(text){
+  const rows=[]; let row=[],cur='',q=false;
+  for(let i=0;i<text.length;i++){
+    const ch=text[i];
+    if(q){
+      if(ch==='"'){ if(text[i+1]==='"'){cur+='"';i++;} else q=false; }
+      else cur+=ch;
+    }else{
+      if(ch==='"') q=true;
+      else if(ch===';'){ row.push(cur); cur=''; }
+      else if(ch==='\n'||ch==='\r'){
+        if(ch==='\r'&&text[i+1]==='\n') i++;
+        row.push(cur); cur='';
+        if(row.some(c=>c.trim()!=='')) rows.push(row);
+        row=[];
+      }else cur+=ch;
+    }
+  }
+  row.push(cur);
+  if(row.some(c=>c.trim()!=='')) rows.push(row);
+  return rows;
+}
+function applyImport(text, src){
+  text = String(text||'').trim();
+  if(!text){ term('Пустой файл.','warn'); return; }
+  try{
+    if(text[0]==='{'||text[0]==='['){
+      const o = JSON.parse(text);
+      const st = o.state || o;
+      if(!st || !Array.isArray(st.trips)) throw new Error('это не файл табло автовокзала');
+      pushUndo('импорт JSON');
+      const base = fresh();
+      if(typeof st.name==='string' && st.name.trim()) S.name = st.name.toUpperCase().slice(0,26);
+      if(st.settings) S.settings = Object.assign({}, base.settings, st.settings);
+      if(st.view) S.view = Object.assign({}, base.view, st.view);
+      if(st.sim) S.sim = Object.assign({}, base.sim, st.sim);
+      S.trips = st.trips;
+      seen={}; prevStatus={}; statusReady=false;
+      lastMinute = Math.floor(S.sim.sec/60);
+      $('stationName').value = S.name;
+      renderRail(); boardDirty=true; flicker(); renderSr(); saveNow();
+      term('Импорт JSON'+(src?' ('+src+')':'')+': '+S.trips.length+' рейс(ов).','ok');
+      toast('JSON загружен','ok',true);
+    }else{
+      const rows = parseCSV(text.replace(/^\uFEFF/,''));
+      if(rows.length<2) throw new Error('в CSV нет строк данных');
+      const head = rows[0].map(h=>h.trim().toLowerCase());
+      const ix = n => head.indexOf(n);
+      if(ix('номер')<0) throw new Error('не найдена колонка «номер»');
+      pushUndo('импорт CSV');
+      let add=0, skip=0;
+      rows.slice(1).forEach(r=>{
+        const g = n => { const i=ix(n); return i>=0 ? (r[i]||'').trim() : ''; };
+        const num = g('номер').toUpperCase();
+        const arr = parseT(g('прибытие')), dep = parseT(g('отправление'));
+        if(!num || (arr==null && dep==null)){ skip++; return; }
+        S.trips.push({id:uid(), num, from:g('откуда'), to:g('куда')||stationLabel(),
+          arr, dep, plat:g('платформа')||'1', sek:g('сектор')||'—',
+          delay:clamp(+g('опоздание')||0,0,999), off:/да|1|true/i.test(g('отменен')), hold:false});
+        add++;
+      });
+      if(!add){ undoStack.pop(); throw new Error('не разобрана ни одна строка'); }
+      seen={}; boardDirty=true; flicker(); renderSr(); save();
+      term('Импорт CSV: добавлено '+add+(skip?', пропущено '+skip:'')+'.','ok');
+      toast('Добавлено рейсов: '+add,'ok',true);
+    }
+  }catch(e){
+    buzz();
+    term('Ошибка импорта: '+e.message,'err');
+    toast('Ошибка импорта','danger');
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   12. ПОДСВЕТКА РАЗБОРА И АВТОДОПОЛНЕНИЕ
+   ═══════════════════════════════════════════════════════════════════════ */
+function renderSyntax(){
+  const box = $('termSyntax');
+  const input = $('cmd');
+  const value = input.value.trim();
+  const runBtn = $('bRun');
+  input.classList.remove('delmode');
+  box.classList.remove('danger');
+  runBtn.className = 'btn primary';
+  runBtn.innerHTML = '<svg class="ic"><use href="#i-check"/></svg>Вывести';
+  if(!value){
+    box.innerHTML = '<span class="term-state idle">Введите команду. Удаление — та же команда со словом «удалить» в конце.</span>';
+    return;
+  }
+  const sp = value.indexOf(' ');
+  const word = sp<0 ? value : value.slice(0,sp);
+  const args = sp<0 ? '' : value.slice(sp+1);
+  const cmd = resolveCommand(word);
+  const chip = (l,v,color,miss,del) =>
+    '<span class="tok'+(miss?' miss':'')+(del?' del':'')+'"><small>'+l+'</small>'+
+    (color?'<i style="background:'+color+';color:'+color+'"></i>':'')+esc(v)+'</span>';
+  if(!cmd){
+    box.innerHTML = chip('команда',word,null,true)+'<span class="term-state bad">неизвестная команда</span>';
+    return;
+  }
+  let html = chip('команда',cmd.name);
+  if(cmd.name === 'автобус'){
+    const del = isDelete(args);
+    const p = parseBus(del ? stripDelete(args) : args);
+    const cls = p.num ? classify(p.num) : null;
+    html += chip('№', p.num||'?', null, !del && !p.num);
+    if(p.parts.length) html += chip('маршрут', (p.from||'…')+' — '+(p.to||'…'), null, !del && !p.to);
+    html += chip('приб', p.arr!=null?fmt(p.arr):'—');
+    html += chip('отпр', p.dep!=null?fmt(p.dep):'—');
+    html += chip('платф', p.plat||'1');
+    if(p.sek) html += chip('сек',p.sek);
+    if(cls) html += chip('тип', cls.code, cls.color);
+    if(del){
+      const found = matchTrips(p);
+      html += chip('действие','УДАЛИТЬ',null,false,true);
+      html += '<span class="term-state del">'+(found.length?'найдено '+found.length+' — Enter удалит':'совпадений нет')+'</span>';
+      input.classList.add('delmode');
+      box.classList.add('danger');
+      runBtn.className = 'btn danger';
+      runBtn.innerHTML = '<svg class="ic"><use href="#i-trash"/></svg>Удалить';
+    }else{
+      html += p.ok
+        ? '<span class="term-state ok"><svg class="ic" style="width:13px;height:13px"><use href="#i-check"/></svg>Enter — вывести на табло</span>'
+        : '<span class="term-state bad">не хватает: '+esc(p.errors.join(', '))+'</span>';
+    }
+  }else{
+    if(args) html += chip('аргументы',args);
+    html += '<span class="term-state idle">'+esc(cmd.desc)+'</span>';
+  }
+  box.innerHTML = html;
+}
+function renderAC(){
+  const box = $('ac'), input = $('cmd'), value = input.value;
+  const sp = value.indexOf(' ');
+  let items = [], delMode = false;
+  if(sp < 0){
+    const w = value.toLowerCase();
+    if(w) items = COMMANDS.filter(c=>c.alias.length && (c.name.startsWith(w)||c.alias.some(a=>a.startsWith(w)))).map(c=>c.name).slice(0,8);
+  }else{
+    const cmd = resolveCommand(value.slice(0,sp));
+    const tail = value.slice(sp+1);
+    delMode = cmd && cmd.name==='автобус' && isDelete(tail);
+    const last = tail.split(/[\s,—]+/).pop();
+    if(cmd && cmd.name==='автобус'){
+      if(/^(уда|удал|убр|del|rm)/i.test(last) && last.length>=2){
+        items = ['удалить'];
+        delMode = true;
+      }else if(last.length>=2 && !isDelete(tail)){
+        items = CITIES.filter(s=>norm(s).includes(norm(last))).slice(0,6);
+      }
+    }
+    if(cmd && ['удалить','задержка','платформа','сектор','отмена','вернуть'].indexOf(cmd.name)>=0 && last.length>=1){
+      items = S.trips.filter(t=>String(t.num).startsWith(last)).map(t=>t.num).slice(0,6);
+    }
+    if(cmd && cmd.name==='размер') items=['малое','среднее','большое'];
+    if(cmd && cmd.name==='скорость') items=['1','10','40'];
+    if(cmd && cmd.name==='режим') items=['полное','время'];
+    if(cmd && cmd.name==='глянец') items=['вкл','выкл'];
+    if(cmd && cmd.name==='диктор') items=['вкл','выкл','проверка'];
+    if(cmd && cmd.name==='экспорт') items=['json','csv'];
+    if(cmd && cmd.name==='очистить') items=['табло','вывод'];
+  }
+  if(!items.length){ box.classList.remove('on'); box.innerHTML=''; return; }
+  box.classList.add('on');
+  box.innerHTML = items.map((t,i)=>'<button class="ac-item'+(i===0?' first':'')+(delMode?' del':'')+'" data-a="ac" data-v="'+esc(t)+'">'+esc(t)+'</button>').join('');
+}
+function applyAC(text){
+  const input = $('cmd'), value = input.value;
+  const sp = value.indexOf(' ');
+  if(sp < 0){ input.value = text+' '; }
+  else{
+    const head = value.slice(0,sp+1);
+    const tail = value.slice(sp+1);
+    const parts = tail.split(/(\s+|—|,)/);
+    let done = false;
+    for(let i=parts.length-1;i>=0;i--){
+      if(parts[i].trim() && parts[i]!=='—' && parts[i]!==','){ parts[i]=text; done=true; break; }
+    }
+    input.value = head + (done ? parts.join('') : tail+text) + (text==='удалить' ? '' : ' ');
+  }
+  input.focus();
+  renderSyntax(); renderAC();
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   13. РЕНДЕР ПАНЕЛЕЙ
+   ═══════════════════════════════════════════════════════════════════════ */
+function renderClock(){
+  $('clockT').textContent = fmt(S.sim.sec/60);
+  $('dayT').textContent = 'сут '+S.sim.day;
+  $('clock').classList.toggle('paused', S.sim.paused);
+  $('bPause').classList.toggle('on', S.sim.paused);
+  $('bPause').innerHTML = '<svg class="ic"><use href="#'+(S.sim.paused?'i-play':'i-pause')+'"/></svg>';
+  Array.from($('speeds').children).forEach(b=>b.classList.toggle('on', +b.dataset.v===S.sim.speed));
+  $('scrub').value = Math.floor(S.sim.sec/60);
+  $('scrubV').textContent = fmt(S.sim.sec/60);
+  $('bSound').classList.toggle('on', S.settings.sound);
+  $('bSound').setAttribute('aria-pressed', S.settings.sound);
+  $('bSound').innerHTML = '<svg class="ic"><use href="#'+(S.settings.sound?'i-sound':'i-mute')+'"/></svg>';
+  document.body.classList.toggle('matte', !S.view.gloss);
+  $('prompt').textContent = shortPrompt();
+  document.title = 'АВТОВОКЗАЛ ' + stationLabel() + ' · матричное табло';
+}
+function renderRail(){
+  Array.from($('sizeSeg').children).forEach(b=>b.classList.toggle('on', b.dataset.v===S.view.size));
+  $('swGloss').setAttribute('aria-checked', S.view.gloss);
+  $('swTime').setAttribute('aria-checked', S.view.timeOnly);
+  $('windowSel').value = String(S.view.window);
+  $('rowsSel').value = String(S.view.rows);
+  renderScale();
+  renderClock();
+}
+function renderLegend(){
+  $('legend').innerHTML = CLASSES.map(c=>
+    '<div class="lg" style="color:'+c.color+'"><i style="background:'+c.color+'"></i>'+
+    '<b>'+c.lo+'–'+c.hi+'</b><span>'+esc(c.name)+'</span></div>').join('');
+}
+function renderSr(){
+  const now = S.sim.sec/60;
+  $('srBoard').textContent = 'Табло автовокзала '+stationLabel()+'. '+boardTrips().slice(0,6).map(t=>{
+    const st = statusOf(t,now);
+    return 'рейс '+t.num+' '+(t.from?t.from+' — ':'')+t.to+
+      (st.a!=null?' прибытие '+fmt(st.a):'')+(st.d!=null?' отправление '+fmt(st.d):'')+' платформа '+t.plat;
+  }).join('; ');
+}
+function welcome(){
+  term('АВТОВОКЗАЛ '+stationLabel()+' · МАТРИЧНОЕ ТАБЛО 5×7','head');
+  term('Управление только командной строкой · время 00:00 · посадка через платформы','info');
+  term('Формат: автобус <№> <откуда> — <куда> [приб ЧЧ:ММ] [отпр ЧЧ:ММ] [платформа N] [сектор X]','dim');
+  term('Нет отправления — рейс только прибывает. Нет прибытия — только отправляется.','dim');
+  term('УДАЛЕНИЕ: та же команда + слово «удалить» в конце. Коротко: автобус 301 удалить','warn');
+  term('Нумерация: 1–99 ГО городские · 100–299 ПР пригородные · 300–599 МГ междугородные','dim');
+  term('           600–799 ЭК экспресс · 800–899 МН международные · 900–999 ЗК заказные · 1000+ СЛ служебные','dim');
+  term('Название автовокзала меняется полем сверху или командой «название …».','dim');
+  term('Введите «помощь» — полный список команд. Tab — дополнение, ↑↓ — история.','warn');
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   14. СОБЫТИЯ
+   ═══════════════════════════════════════════════════════════════════════ */
+document.addEventListener('click', e=>{
+  const b = e.target.closest('[data-a]');
+  if(!b) return;
+  const a = b.dataset.a, v = b.dataset.v;
+  switch(a){
+    case 'pause': S.sim.paused=!S.sim.paused; renderClock(); boardDirty=true; save(); break;
+    case 'speed': S.sim.speed=+v; renderClock(); save(); break;
+    case 'plus1': jump(60,'Время: +1 минута.'); break;
+    case 'plus5': jump(300,'Время: +5 минут.'); break;
+    case 'minus1': jump(-60,'Время: −1 минута.'); break;
+    case 'minus5': jump(-300,'Время: −5 минут.'); break;
+    case 'settime': {
+      const t = parseT($('setTime').value);
+      if(t==null){ $('setTime').classList.add('err'); setTimeout(()=>$('setTime').classList.remove('err'),600); break; }
+      setTime(t);
+      break;
+    }
+    case 'sound':
+      S.settings.sound = !S.settings.sound;
+      if(!S.settings.sound){ try{ window.speechSynthesis && window.speechSynthesis.cancel(); }catch(x){} }
+      else { audio(); stationBell(); }
+      renderClock(); save();
+      toast(S.settings.sound?'Звук включён: звонок и объявления':'Звук выключен','info');
+      break;
+    case 'fs': toggleFS(); break;
+    case 'size': S.view.size=v; renderRail(); boardDirty=true; fitBoard(); flicker(); save(); break;
+    case 'gloss': S.view.gloss=!S.view.gloss; renderRail(); boardDirty=true; save(); break;
+    case 'timeonly': S.view.timeOnly=!S.view.timeOnly; renderRail(); boardDirty=true; fitBoard(); flicker(); save(); break;
+    case 'fit': S.view.fit=true; fitBoard(); save(); break;
+    case 'run': execute($('cmd').value); $('cmd').value=''; renderSyntax(); renderAC(); break;
+    case 'ac': applyAC(v); break;
+    case 'help': execute('помощь'); break;
+    case 'bell': execute('звонок'); break;
+    case 'clear-term': termOut.innerHTML=''; welcome(); break;
+  }
+});
+document.addEventListener('input', e=>{
+  const t = e.target;
+  if(t.id==='cmd'){ renderSyntax(); renderAC(); return; }
+  if(t.id==='stationName'){
+    S.name = (t.value || 'ЦЕНТРАЛЬНЫЙ').toUpperCase().slice(0,26);
+    renderClock(); boardDirty = true; save(); return;
+  }
+  if(t.id==='scale'){
+    S.view.fit=false; S.view.scale=+t.value/100;
+    $('scaleV').textContent=t.value+'%'; boardDirty=true; save(); return;
+  }
+  if(t.id==='scrub'){ setTime(+t.value, true); return; }
+});
+document.addEventListener('change', e=>{
+  const t = e.target;
+  if(t.id==='windowSel'){ S.view.window=+t.value; seen={}; boardDirty=true; flicker(); save(); return; }
+  if(t.id==='rowsSel'){ S.view.rows=+t.value; boardDirty=true; flicker(); save(); return; }
+  if(t.id==='fileInput' && t.files && t.files[0]){
+    const f = t.files[0];
+    f.text().then(x=>applyImport(x,f.name)).catch(()=>term('Файл не прочитан.','err'));
+    t.value='';
+    return;
+  }
+});
+$('stationName').addEventListener('blur', e=>{
+  if(!e.target.value.trim()){
+    S.name = 'ЦЕНТРАЛЬНЫЙ';
+    e.target.value = S.name;
+    renderClock(); boardDirty = true; save();
+  }else{
+    e.target.value = S.name;
+  }
+});
+$('stationName').addEventListener('keydown', e=>{
+  if(e.key==='Enter'){ e.preventDefault(); e.target.blur(); term('Название автовокзала: '+S.name+'.','ok'); }
+});
+let history = [], histIdx = -1;
+$('cmd').addEventListener('keydown', e=>{
+  if(e.key==='Enter'){
+    e.preventDefault();
+    execute($('cmd').value);
+    $('cmd').value='';
+    renderSyntax(); renderAC();
+  }else if(e.key==='Tab'){
+    e.preventDefault();
+    const first = $('ac').querySelector('.ac-item');
+    if(first) applyAC(first.dataset.v);
+  }else if(e.key==='ArrowUp'){
+    e.preventDefault();
+    if(history.length){
+      histIdx = Math.min(histIdx+1, history.length-1);
+      $('cmd').value = history[histIdx];
+      renderSyntax(); renderAC();
+    }
+  }else if(e.key==='ArrowDown'){
+    e.preventDefault();
+    if(histIdx>0){ histIdx--; $('cmd').value=history[histIdx]; }
+    else { histIdx=-1; $('cmd').value=''; }
+    renderSyntax(); renderAC();
+  }else if(e.key==='Escape'){
+    $('cmd').value=''; renderSyntax(); renderAC();
+  }else if(e.key==='l' && e.ctrlKey){
+    e.preventDefault(); termOut.innerHTML=''; welcome();
+  }
+});
+document.addEventListener('keydown', e=>{
+  if(e.key==='Escape' && document.body.classList.contains('fs')){ toggleFS(); return; }
+  if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='k'){
+    e.preventDefault();
+    $('term').scrollIntoView({block:'center',behavior:'smooth'});
+    $('cmd').focus();
+    return;
+  }
+  const tag = (e.target.tagName||'').toLowerCase();
+  if(tag==='input'||tag==='textarea'||tag==='select') return;
+  if(e.code==='Space'){ e.preventDefault(); S.sim.paused=!S.sim.paused; renderClock(); boardDirty=true; save(); }
+  if(e.code==='KeyF' && !e.ctrlKey && !e.metaKey){ e.preventDefault(); toggleFS(); }
+  if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='z'){ e.preventDefault(); undo(); }
+  if(e.key==='/'){ e.preventDefault(); $('cmd').focus(); }
+});
+['bezel','term'].forEach(id=>{
+  const el = $(id);
+  el.addEventListener('dragover', e=>{
+    if(e.dataTransfer && Array.from(e.dataTransfer.types).indexOf('Files')>=0){
+      e.preventDefault();
+      $('bezel').classList.add('dropping');
+    }
+  });
+  el.addEventListener('dragleave', ()=> $('bezel').classList.remove('dropping'));
+  el.addEventListener('drop', e=>{
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if(!f) return;
+    e.preventDefault();
+    $('bezel').classList.remove('dropping');
+    f.text().then(x=>applyImport(x,f.name)).catch(()=>term('Файл не прочитан.','err'));
+  });
+});
+document.addEventListener('pointerdown', function once(){
+  audio();
+  if(AC && AC.state==='suspended') AC.resume().catch(()=>{});
+  document.removeEventListener('pointerdown', once);
+},{once:true});
+const onResize = debounce(()=>{ fitBoard(); boardDirty=true; },140);
+window.addEventListener('resize', onResize);
+if(window.ResizeObserver){ try{ new ResizeObserver(onResize).observe($('boardScroll')); }catch(e){} }
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden){ lastTs=0; boardDirty=true; } });
+
+/* ═══════════════════════════════════════════════════════════════════════
+   15. ГЛАВНЫЙ ЦИКЛ
+   ═══════════════════════════════════════════════════════════════════════ */
+let lastTs = 0;
+function frame(ts){
+  requestAnimationFrame(frame);
+  if(document.hidden) return;
+  const dt = lastTs ? Math.min(.1,(ts-lastTs)/1000) : 0;
+  lastTs = ts;
+  const blink = Math.floor(ts/560)%2;
+  const pageMs = Math.max(3,S.view.pageSec)*1000;
+  const page = pageCount>1 ? Math.floor(ts/pageMs)%pageCount : 0;
+  if(boardDirty || blink!==lastBlink || page!==lastPage){
+    lastPage = page; lastBlink = blink; boardDirty = false;
+    try{ renderBoard(ts); }catch(err){}
+  }
+  try{ renderTicker(dt); }catch(err){}
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   16. ЗАПУСК
+   ═══════════════════════════════════════════════════════════════════════ */
+$('stationName').value = S.name;
+renderLegend();
+renderRail();
+welcome();
+refreshStatuses(true);
+renderSr();
+requestAnimationFrame(frame);
+requestAnimationFrame(()=>{ fitBoard(); boardDirty=true; });
+saveNow();
+
+})();
+</script>
+</body>
+</html>
